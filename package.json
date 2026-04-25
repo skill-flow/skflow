@@ -11,7 +11,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run build --workspaces",
+    "build": "tsc -p packages/runtime && tsc -p packages/transform && tsc -p packages/cli",
     "test": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint .",

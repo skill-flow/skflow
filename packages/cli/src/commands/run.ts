@@ -44,8 +44,8 @@ export async function runCommand(args: string[]): Promise<void> {
       console.error(`Script does not export a 'step' function: ${scriptPath}`);
       process.exit(1);
     }
-  } catch (err: any) {
-    console.error(`Failed to load script: ${err.message}`);
+  } catch (err) {
+    console.error(`Failed to load script: ${(err as Error).message}`);
     process.exit(1);
   }
 

@@ -52,8 +52,8 @@ export async function resumeCommand(args: string[]): Promise<void> {
   let meta;
   try {
     meta = loadMeta(sessionId);
-  } catch (err: any) {
-    console.error(err.message);
+  } catch (err) {
+    console.error((err as Error).message);
     process.exit(1);
   }
 
@@ -65,8 +65,8 @@ export async function resumeCommand(args: string[]): Promise<void> {
       console.error(`Script does not export a 'step' function: ${meta.scriptPath}`);
       process.exit(1);
     }
-  } catch (err: any) {
-    console.error(`Failed to load script: ${err.message}`);
+  } catch (err) {
+    console.error(`Failed to load script: ${(err as Error).message}`);
     process.exit(1);
   }
 

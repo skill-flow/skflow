@@ -12,11 +12,17 @@
   "bin": {
     "cmdx": "dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsc"
   },
   "dependencies": {
-    "@ocmdx/runtime": "*",
-    "@ocmdx/transform": "*"
+    "@ocmdx/runtime": "0.1.0",
+    "@ocmdx/transform": "0.1.0"
   }
 }
