@@ -1,0 +1,26 @@
+{
+  "name": "@ocmdx/transform",
+  "version": "0.1.0",
+  "description": "AST transformer for ocmdx scripts",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/opencmdx/ocmdx.git",
+    "directory": "packages/transform"
+  },
+  "license": "MIT",
+  "type": "module",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "@ocmdx/cli",
+  "version": "0.1.0",
+  "description": "CLI entry point for ocmdx",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/opencmdx/ocmdx.git",
+    "directory": "packages/cli"
+  },
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "cmdx": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@ocmdx/runtime": "*",
+    "@ocmdx/transform": "*"
+  }
+}
