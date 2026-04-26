@@ -7,7 +7,7 @@ import type { StepFunction } from "@ocmdx/runtime";
 function findCompiledScript(name: string): string | null {
   let dir = process.cwd();
   while (true) {
-    const candidate = path.join(dir, ".claude", "commands", ".cmdx", `${name}.compiled.js`);
+    const candidate = path.join(dir, ".ocmdx", "skills", name, "script.compiled.js");
     if (fs.existsSync(candidate)) return candidate;
     const parent = path.dirname(dir);
     if (parent === dir) break;

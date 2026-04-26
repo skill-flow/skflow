@@ -30,8 +30,10 @@ ocmdx extracts the deterministic parts into a compiled script and only yields ba
 
 ### 1. Write a script
 
+Place your script in `.ocmdx/skills/<name>/script.ts`:
+
 ```typescript
-// commit.ts
+// .ocmdx/skills/commit/script.ts
 import { sh, ask, done } from "@ocmdx/runtime";
 
 export async function main() {
@@ -69,6 +71,8 @@ export async function main() {
 
 ```bash
 cmdx compile commit
+# Reads:  .ocmdx/skills/commit/script.ts
+# Writes: .ocmdx/skills/commit/script.compiled.js
 ```
 
 The transform package parses the TypeScript AST, hoists variables into a state object, and explodes the control flow into a `switch(state.phase)` state machine. Each `sh()`, `ask()`, and `askUser()` call becomes a yield point.
@@ -83,6 +87,20 @@ cmdx run commit
 # The caller (Claude Code) generates the answer, then resumes
 cmdx resume abc123 --answer="feat: add login\n\nAdded login form and auth integration"
 # → {"done": {"summary": "feat: add login"}, "log": [...]}
+```
+
+## Project Directory Layout
+
+Scripts live in `.ocmdx/skills/` at your project root:
+
+```
+your-project/
+├── .ocmdx/skills/
+│   └── commit/
+│       ├── script.ts              ← source script
+│       ├── script.compiled.js     ← compiled state machine
+│       └── origin.md              ← original skill backup (if transformed)
+└── .claude/commands/commit.md     ← thin wrapper (yield protocol)
 ```
 
 ## Architecture
@@ -140,6 +158,27 @@ cmdx resume <session-id> --answer="the answer"
 ```
 
 Sessions are stored in `os.tmpdir()/cmdx/sessions/` and expire after 15 minutes.
+
+## Transform Existing Skills
+
+Have a verbose markdown skill? Transform it into an ocmdx script automatically:
+
+```bash
+# Install the transform skill (works with any agent that supports the skills ecosystem)
+npx skills add opencmdx/ocmdx
+
+# Then invoke it from your agent
+/ocmdx-transform .claude/commands/commit.md
+```
+
+The transform skill guides the LLM to:
+
+1. Read your original markdown skill
+2. Classify each step as `sh()`, `ask()`, `askUser()`, or `done()`
+3. Generate `.ocmdx/skills/<name>/script.ts`
+4. Backup the original to `.ocmdx/skills/<name>/origin.md`
+5. Replace the original with a thin yield-protocol wrapper
+6. Compile the script
 
 ## Development
 

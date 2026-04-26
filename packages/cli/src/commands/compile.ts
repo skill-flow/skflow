@@ -2,18 +2,18 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { transform } from "@ocmdx/transform";
 
-function findCommandsDir(): string {
-  // Walk up from cwd looking for .claude/commands/.cmdx/
+function findSkillsDir(): string {
+  // Walk up from cwd looking for .ocmdx/skills/
   let dir = process.cwd();
   while (true) {
-    const candidate = path.join(dir, ".claude", "commands", ".cmdx");
+    const candidate = path.join(dir, ".ocmdx", "skills");
     if (fs.existsSync(candidate)) return candidate;
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
-  // Default to cwd/.claude/commands/.cmdx/
-  return path.join(process.cwd(), ".claude", "commands", ".cmdx");
+  // Default to cwd/.ocmdx/skills/
+  return path.join(process.cwd(), ".ocmdx", "skills");
 }
 
 export async function compileCommand(args: string[]): Promise<void> {
@@ -29,8 +29,9 @@ export async function compileCommand(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const cmdxDir = findCommandsDir();
-  const srcPath = path.join(cmdxDir, `${name}.ts`);
+  const skillsDir = findSkillsDir();
+  const skillDir = path.join(skillsDir, name);
+  const srcPath = path.join(skillDir, "script.ts");
 
   if (!fs.existsSync(srcPath)) {
     console.error(`Source not found: ${srcPath}`);
@@ -38,7 +39,7 @@ export async function compileCommand(args: string[]): Promise<void> {
   }
 
   const source = fs.readFileSync(srcPath, "utf-8");
-  const result = transform(source, `${name}.ts`);
+  const result = transform(source, "script.ts");
 
   if (result.errors.length > 0) {
     for (const err of result.errors) {
@@ -47,7 +48,7 @@ export async function compileCommand(args: string[]): Promise<void> {
     process.exit(1);
   }
 
-  const outPath = path.join(cmdxDir, `${name}.compiled.js`);
+  const outPath = path.join(skillDir, "script.compiled.js");
   fs.writeFileSync(outPath, result.code, "utf-8");
   console.error(`Compiled: ${outPath}`);
 }
