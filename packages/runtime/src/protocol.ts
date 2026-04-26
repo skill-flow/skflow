@@ -61,7 +61,7 @@ export interface SessionMeta {
 
 /** Internal yield from sh() — runtime auto-resumes these */
 export interface InternalShYield {
-  _sh: { cmd: string; timeout?: number };
+  _sh: { cmd: string; stdin?: string; timeout?: number };
   next: SessionState;
 }
 

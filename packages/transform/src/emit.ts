@@ -57,12 +57,30 @@ function makeNextState(targetPhase: number): ts.ObjectLiteralExpression {
   ]);
 }
 
-function makeShYield(cmd: ts.Expression, targetPhase: number): ts.ObjectLiteralExpression {
+function makeShYield(
+  cmd: ts.Expression,
+  targetPhase: number,
+  optsArg?: ts.Expression,
+): ts.ObjectLiteralExpression {
+  const shProperties: ts.ObjectLiteralElementLike[] = [f.createPropertyAssignment("cmd", cmd)];
+
+  // Spread known properties from the options argument if present
+  if (optsArg && ts.isObjectLiteralExpression(optsArg)) {
+    for (const prop of optsArg.properties) {
+      if (ts.isPropertyAssignment(prop) && ts.isIdentifier(prop.name)) {
+        const name = prop.name.text;
+        if (name === "stdin" || name === "timeout") {
+          shProperties.push(f.createPropertyAssignment(name, cloneExpr(prop.initializer)));
+        }
+      }
+    }
+  } else if (optsArg) {
+    // Non-literal options object — spread it at runtime
+    shProperties.push(f.createSpreadAssignment(cloneExpr(optsArg)));
+  }
+
   return f.createObjectLiteralExpression([
-    f.createPropertyAssignment(
-      "_sh",
-      f.createObjectLiteralExpression([f.createPropertyAssignment("cmd", cmd)]),
-    ),
+    f.createPropertyAssignment("_sh", f.createObjectLiteralExpression(shProperties)),
     f.createPropertyAssignment("next", makeNextState(targetPhase)),
   ]);
 }
@@ -191,9 +209,10 @@ function explodeYieldExpression(
       const nextP = newPhase(`/* L${line} resume after ${fnName}() */`);
 
       if (fnName === "sh") {
+        const optsArg = call.arguments[1] ? cloneExpr(call.arguments[1]) : undefined;
         emitToCase(
           cases.length - 2,
-          f.createReturnStatement(makeShYield(cloneExpr(call.arguments[0]), nextP)),
+          f.createReturnStatement(makeShYield(cloneExpr(call.arguments[0]), nextP, optsArg)),
         );
       } else {
         emitToCase(
@@ -229,9 +248,10 @@ function explodeYieldExpression(
     const nextP = newPhase(`/* L${line} resume after ${fnName}() */`);
 
     if (fnName === "sh") {
+      const optsArg = call.arguments[1] ? cloneExpr(call.arguments[1]) : undefined;
       emitToCase(
         cases.length - 2,
-        f.createReturnStatement(makeShYield(cloneExpr(call.arguments[0]), nextP)),
+        f.createReturnStatement(makeShYield(cloneExpr(call.arguments[0]), nextP, optsArg)),
       );
     } else {
       emitToCase(

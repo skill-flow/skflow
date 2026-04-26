@@ -90,7 +90,10 @@ function executeLoop(
     if (isShYield(result)) {
       // Auto-resume: execute sh, log, advance phase
       saveState(sessionId, result.next);
-      const shResult = execSh(result._sh.cmd, result._sh.timeout);
+      const shResult = execSh(result._sh.cmd, {
+        stdin: result._sh.stdin,
+        timeout: result._sh.timeout,
+      });
       const logEntry: LogEntry = {
         type: "sh",
         cmd: result._sh.cmd,

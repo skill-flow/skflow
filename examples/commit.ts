@@ -1,4 +1,4 @@
-import { sh, ask, askUser, done } from "@ocmdx/runtime";
+import { sh, ask, done } from "@ocmdx/runtime";
 
 export async function main() {
   // Step 1: Check staged files
@@ -11,39 +11,42 @@ export async function main() {
   const stat = await sh("git diff --cached --stat");
   const diff = await sh("git diff --cached");
 
-  // Step 3-4: Ask LLM to generate commit title based on diff
-  const title = await ask({
-    prompt: "Generate a commit title (max 80 chars, format: <type>: <description>)",
+  // Step 3: Ask LLM to generate commit message (title + description)
+  const message = await ask({
+    prompt:
+      "Generate a commit message for the following changes.\n" +
+      "Line 1: title in the format <type>: <description> (max 80 chars, lowercase, English, no period)\n" +
+      "Line 2: blank\n" +
+      "Line 3+: brief description of what changed (bullet points)\n\n" +
+      "Types: feat, fix, refactor, perf, docs, style, test, chore",
     data: { staged, stat, diff },
   });
 
-  // Step 5: Execute git commit
-  const commitResult = await sh('git commit -m "' + title + '"');
+  // Step 4: Execute git commit using stdin to avoid shell escaping issues
+  let lastResult = await sh("git commit -F -", { stdin: message });
 
-  // Check if commit succeeded (code 0 from sh result)
-  let retries = 0;
-  while (retries < 2) {
-    // If commit succeeded, we're done
-    if (commitResult) {
-      return done({ summary: title, data: { commitResult } });
-    }
-
-    // Commit failed — try to fix and retry
-    retries++;
-    const fixAction = await askUser({
-      question: "Pre-commit hook failed after " + retries + " retries. What would you like to do?",
-      data: { commitResult },
-    });
-
-    // After user fixes, re-stage and retry
-    const restage = await sh("git add -u");
-    const retry = await sh('git commit -m "' + title + '"');
+  // Step 5: If commit succeeded, we're done
+  if (lastResult.code === 0) {
+    return done({ summary: message.split("\n")[0], data: { commitResult: lastResult } });
   }
 
-  // Exhausted retries — ask user for final decision
-  const fallback = await askUser({
-    question: "Commit failed after 2 retries. Options: 1) Fix manually, 2) --no-verify, 3) Cancel",
-  });
+  // Step 6: Pre-commit failed — loop: yield to caller for fix, then retry
+  // No retry limit — caller (Claude Code) decides when to stop
+  while (true) {
+    const fix = await ask({
+      prompt:
+        "Pre-commit hook failed with the following errors. " +
+        "Please fix the issues, then resume.\n\n" +
+        lastResult.stderr,
+      data: { stderr: lastResult.stderr, stdout: lastResult.stdout },
+    });
 
-  return done({ summary: "Commit deferred to user", data: { fallback } });
+    // Caller has fixed the code — re-stage and retry
+    const restage = await sh("git add -u");
+    lastResult = await sh("git commit -F -", { stdin: message });
+
+    if (lastResult.code === 0) {
+      return done({ summary: message.split("\n")[0], data: { commitResult: lastResult } });
+    }
+  }
 }

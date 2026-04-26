@@ -156,6 +156,101 @@ export async function main() {
   });
 });
 
+describe("transform — sh() with options (stdin/timeout)", () => {
+  it("sh with stdin option compiles to _sh with stdin field", () => {
+    const source = `
+import { sh, done } from "@ocmdx/runtime";
+export async function main() {
+  const result = await sh("git commit -F -", { stdin: "feat: test" });
+  return done({ summary: "ok" });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    // Phase 0: sh with stdin
+    const r0 = r.step!({ phase: 0 });
+    expect(r0._sh.cmd).toBe("git commit -F -");
+    expect(r0._sh.stdin).toBe("feat: test");
+  });
+
+  it("sh with timeout option compiles to _sh with timeout field", () => {
+    const source = `
+import { sh, done } from "@ocmdx/runtime";
+export async function main() {
+  const result = await sh("slow-cmd", { timeout: 120000 });
+  return done({ summary: "ok" });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    const r0 = r.step!({ phase: 0 });
+    expect(r0._sh.cmd).toBe("slow-cmd");
+    expect(r0._sh.timeout).toBe(120000);
+  });
+
+  it("sh with both stdin and timeout", () => {
+    const source = `
+import { sh, done } from "@ocmdx/runtime";
+export async function main() {
+  const result = await sh("cmd", { stdin: "data", timeout: 30000 });
+  return done({ summary: "ok" });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    const r0 = r.step!({ phase: 0 });
+    expect(r0._sh.cmd).toBe("cmd");
+    expect(r0._sh.stdin).toBe("data");
+    expect(r0._sh.timeout).toBe(30000);
+  });
+
+  it("sh without options still works (backward compatible)", () => {
+    const source = `
+import { sh, done } from "@ocmdx/runtime";
+export async function main() {
+  const result = await sh("echo hello");
+  return done({ summary: "ok" });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    const r0 = r.step!({ phase: 0 });
+    expect(r0._sh.cmd).toBe("echo hello");
+    expect(r0._sh.stdin).toBeUndefined();
+    expect(r0._sh.timeout).toBeUndefined();
+  });
+
+  it("sh with stdin using state variable", () => {
+    const source = `
+import { sh, ask, done } from "@ocmdx/runtime";
+export async function main() {
+  const message = await ask({ prompt: "commit message?" });
+  const result = await sh("git commit -F -", { stdin: message });
+  return done({ summary: "ok" });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+    // Should compile without errors — the stdin references state.message at runtime
+    expect(r.code).toContain("stdin");
+    expect(r.code).toContain("state.message");
+  });
+
+  it("bare sh with options (no assignment)", () => {
+    const source = `
+import { sh, done } from "@ocmdx/runtime";
+export async function main() {
+  await sh("git commit -F -", { stdin: "test message" });
+  return done({ summary: "ok" });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    const r0 = r.step!({ phase: 0 });
+    expect(r0._sh.cmd).toBe("git commit -F -");
+    expect(r0._sh.stdin).toBe("test message");
+  });
+});
+
 describe("transform — unsupported patterns (5.15)", () => {
   it("try/catch across yield produces error", () => {
     const source = `
