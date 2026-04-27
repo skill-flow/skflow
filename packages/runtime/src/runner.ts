@@ -117,7 +117,7 @@ function executeLoop(
         yield: result.yield,
         log,
         session: sessionId,
-        resume: `cmdx resume ${sessionId}`,
+        resume: `skflow resume ${sessionId}`,
       };
       return msg;
     }

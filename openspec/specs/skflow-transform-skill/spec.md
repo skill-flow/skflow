@@ -2,16 +2,16 @@
 
 ### Requirement: SKILL.md is discoverable by vercel-labs/skills CLI
 
-The file `skills/ocmdx-transform/SKILL.md` SHALL exist in the repo root with YAML frontmatter containing `name: ocmdx-transform` and a `description` field. This makes it discoverable by `npx skills add opencmdx/ocmdx`.
+The file `skills/skflow-transform/SKILL.md` SHALL exist in the repo root with YAML frontmatter containing `name: skflow-transform` and a `description` field. This makes it discoverable by `npx skills add openskflow/skflow`.
 
 #### Scenario: Skill discovery via npx skills add
 
 - **WHEN** the vercel-labs/skills CLI clones this repo and recursively searches for SKILL.md files
-- **THEN** it finds `skills/ocmdx-transform/SKILL.md` and parses the `name` and `description` from frontmatter
+- **THEN** it finds `skills/skflow-transform/SKILL.md` and parses the `name` and `description` from frontmatter
 
 ### Requirement: Transform skill classifies steps correctly
 
-The SKILL.md prompt SHALL instruct the LLM to classify each step in the original markdown skill into ocmdx primitives:
+The SKILL.md prompt SHALL instruct the LLM to classify each step in the original markdown skill into skflow primitives:
 
 - Deterministic shell commands → `sh()`
 - Steps requiring LLM judgment or generation → `ask()`
@@ -44,28 +44,28 @@ The prompt SHALL instruct the LLM to preserve the original skill's complete logi
 
 The SKILL.md prompt SHALL instruct the LLM to produce the following outputs:
 
-1. `.ocmdx/skills/<name>/script.ts` — the generated ocmdx script using `import { sh, ask, askUser, done } from "@ocmdx/runtime"`
-2. `.ocmdx/skills/<name>/origin.md` — the original markdown skill, moved as backup
-3. A thin wrapper markdown file replacing the original, containing yield protocol instructions and `allowed-tools: Bash(cmdx *)`
+1. `.skflow/skills/<name>/script.ts` — the generated skflow script using `import { sh, ask, askUser, done } from "@skflow/runtime"`
+2. `.skflow/skills/<name>/origin.md` — the original markdown skill, moved as backup
+3. A thin wrapper markdown file replacing the original, containing yield protocol instructions and `allowed-tools: Bash(skflow *)`
 
 #### Scenario: Full transform of a markdown skill
 
 - **WHEN** user invokes the transform skill with path `commit.md`
-- **THEN** the LLM creates `.ocmdx/skills/commit/script.ts`, moves the original to `.ocmdx/skills/commit/origin.md`, and replaces the original `commit.md` with a thin yield-protocol wrapper
+- **THEN** the LLM creates `.skflow/skills/commit/script.ts`, moves the original to `.skflow/skills/commit/origin.md`, and replaces the original `commit.md` with a thin yield-protocol wrapper
 
 #### Scenario: Thin wrapper content
 
 - **WHEN** the thin wrapper is generated
-- **THEN** it contains frontmatter with `description` and `allowed-tools: Bash(cmdx *)`, and body instructions for the yield protocol (run, parse yield, resume, handle done/error)
+- **THEN** it contains frontmatter with `description` and `allowed-tools: Bash(skflow *)`, and body instructions for the yield protocol (run, parse yield, resume, handle done/error)
 
 ### Requirement: Transform skill triggers compilation
 
-The SKILL.md prompt SHALL instruct the LLM to run `npx @ocmdx/cli compile <name>` after generating `script.ts`, producing `script.compiled.js` in the same directory.
+The SKILL.md prompt SHALL instruct the LLM to run `npx @skflow/cli compile <name>` after generating `script.ts`, producing `script.compiled.js` in the same directory.
 
 #### Scenario: Compile after generation
 
-- **WHEN** the LLM has generated `.ocmdx/skills/commit/script.ts`
-- **THEN** the LLM runs `npx @ocmdx/cli compile commit` and verifies the compiled output exists
+- **WHEN** the LLM has generated `.skflow/skills/commit/script.ts`
+- **THEN** the LLM runs `npx @skflow/cli compile commit` and verifies the compiled output exists
 
 ### Requirement: Transform skill includes a worked example
 

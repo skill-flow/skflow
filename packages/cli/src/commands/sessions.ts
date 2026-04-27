@@ -1,4 +1,4 @@
-import { listSessions, cleanExpiredSessions } from "@ocmdx/runtime/session";
+import { listSessions, cleanExpiredSessions } from "@skflow/runtime/session";
 
 export async function sessionsCommand(args: string[]): Promise<void> {
   const sub = args[0];
@@ -24,6 +24,6 @@ export async function sessionsCommand(args: string[]): Promise<void> {
     return;
   }
 
-  console.error("Usage: cmdx sessions ls|clean");
+  console.error("Usage: skflow sessions ls|clean");
   process.exit(1);
 }

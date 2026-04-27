@@ -39,7 +39,7 @@ The `ask(opts)` function SHALL pause script execution, serialize current state, 
 #### Scenario: ask with prompt and data
 
 - **WHEN** script calls `await ask({prompt: "Generate commit title", data: {diff: "..."}})`
-- **THEN** runtime saves state, outputs `{"yield": {"type": "text", "prompt": "...", "data": {...}}, "log": [...], "session": "<id>", "resume": "cmdx resume <id>"}`, and exits with code 0
+- **THEN** runtime saves state, outputs `{"yield": {"type": "text", "prompt": "...", "data": {...}}, "log": [...], "session": "<id>", "resume": "skflow resume <id>"}`, and exits with code 0
 
 #### Scenario: ask with choices
 
@@ -76,7 +76,7 @@ The runtime SHALL save state to `<session-dir>/state.json` before each yield poi
 #### Scenario: State saved before sh()
 
 - **WHEN** script executes `await sh("git diff")` and the process crashes mid-execution
-- **THEN** on next `cmdx resume`, runtime resumes from the phase before the `sh()` call
+- **THEN** on next `skflow resume`, runtime resumes from the phase before the `sh()` call
 
 #### Scenario: State saved before ask()
 

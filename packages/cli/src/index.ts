@@ -1,16 +1,15 @@
 #!/usr/bin/env node
 
-const commands = ["run", "resume", "compile", "migrate", "sessions"] as const;
+const commands = ["run", "resume", "compile", "sessions"] as const;
 type Command = (typeof commands)[number];
 
 function printUsage(): void {
-  console.error(`Usage: cmdx <command> [options]
+  console.error(`Usage: skflow <command> [options]
 
 Commands:
-  run <name>          Run a compiled cmdx script
+  run <name>          Run a compiled skflow script
   resume <id>         Resume a paused session
   compile <name>      Compile a .ts script to state machine
-  migrate <name>      Convert a command.md to cmdx form
   sessions ls|clean   Manage sessions`);
 }
 
@@ -40,11 +39,6 @@ async function main(): Promise<void> {
     case "compile": {
       const { compileCommand } = await import("./commands/compile.js");
       await compileCommand(subArgs);
-      break;
-    }
-    case "migrate": {
-      const { migrateCommand } = await import("./commands/migrate.js");
-      await migrateCommand(subArgs);
       break;
     }
     case "sessions": {

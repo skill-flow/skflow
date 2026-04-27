@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { transform } from "@ocmdx/transform";
-import { run, resume, RuntimeError } from "@ocmdx/runtime";
-import type { StepFunction, YieldMessage, DoneMessage } from "@ocmdx/runtime";
+import { transform } from "@skflow/transform";
+import { run, resume, RuntimeError } from "@skflow/runtime";
+import type { StepFunction, YieldMessage, DoneMessage } from "@skflow/runtime";
 
 /**
  * These tests exercise the CLI logic without spawning child processes.
@@ -29,7 +29,7 @@ function isDone(r: YieldMessage | DoneMessage): r is DoneMessage {
 describe("CLI — compile + run + resume cycle (6.7)", () => {
   it("run → yield → resume → done", () => {
     const source = `
-import { sh, ask, done } from "@ocmdx/runtime";
+import { sh, ask, done } from "@skflow/runtime";
 export async function main() {
   const diff = await sh("echo hello");
   const title = await ask({ prompt: "title?" });
@@ -56,7 +56,7 @@ export async function main() {
 
   it("run → done (no yields)", () => {
     const source = `
-import { done } from "@ocmdx/runtime";
+import { done } from "@skflow/runtime";
 export async function main() {
   return done({ summary: "instant" });
 }`;
@@ -69,7 +69,7 @@ export async function main() {
 
   it("compile failure returns errors", () => {
     const source = `
-import { ask } from "@ocmdx/runtime";
+import { ask } from "@skflow/runtime";
 export async function main() {
   try { const x = await ask({ prompt: "test" }); } catch (e) {}
 }`;
@@ -111,7 +111,7 @@ describe("CLI — answer validation (6.5)", () => {
 describe("CLI — JSON-only stdout (6.6)", () => {
   it("run output is valid JSON", () => {
     const source = `
-import { done } from "@ocmdx/runtime";
+import { done } from "@skflow/runtime";
 export async function main() {
   return done({ summary: "test" });
 }`;
@@ -124,7 +124,7 @@ export async function main() {
 
   it("yield output is valid JSON with session info", () => {
     const source = `
-import { ask, done } from "@ocmdx/runtime";
+import { ask, done } from "@skflow/runtime";
 export async function main() {
   const x = await ask({ prompt: "q?" });
   return done({ summary: x });
@@ -135,6 +135,6 @@ export async function main() {
     const parsed = JSON.parse(json);
     expect(parsed.yield).toBeDefined();
     expect(parsed.session).toBeTruthy();
-    expect(parsed.resume).toContain("cmdx resume");
+    expect(parsed.resume).toContain("skflow resume");
   });
 });

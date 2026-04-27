@@ -1,10 +1,10 @@
 {
-  "name": "ocmdx",
+  "name": "skflow",
   "type": "module",
   "private": true,
   "repository": {
     "type": "git",
-    "url": "https://github.com/opencmdx/ocmdx.git"
+    "url": "https://github.com/ChikaFujiwara/skflow.git"
   },
   "license": "MIT",
   "workspaces": [

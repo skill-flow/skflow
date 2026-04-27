@@ -36,9 +36,9 @@ jobs:
           registry-url: https://registry.npmjs.org
       - run: npm ci
       - run: npm run build
-      - name: Publish @ocmdx/runtime
+      - name: Publish @skflow/runtime
         run: cd packages/runtime && npm publish --access public --provenance || true
-      - name: Publish @ocmdx/transform
+      - name: Publish @skflow/transform
         run: cd packages/transform && npm publish --access public --provenance || true
-      - name: Publish @ocmdx/cli
+      - name: Publish @skflow/cli
         run: cd packages/cli && npm publish --access public --provenance || true

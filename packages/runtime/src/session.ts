@@ -7,7 +7,7 @@ import type { SessionState, SessionMeta, LogEntry } from "./protocol.js";
 const SESSION_TTL_MS = 15 * 60 * 1000;
 
 export function getSessionsDir(): string {
-  return join(tmpdir(), "cmdx", "sessions");
+  return join(tmpdir(), "skflow", "sessions");
 }
 
 export function getSessionDir(sessionId: string): string {

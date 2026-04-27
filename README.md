@@ -1,14 +1,14 @@
-# ocmdx
+# skflow
 
 Turn natural-language AI commands into deterministic, resumable scripts.
 
-ocmdx compiles TypeScript scripts that mix shell commands (`sh`) with LLM judgment calls (`ask`) into state machines. The compiled scripts yield to an AI agent (like Claude Code) when they need a decision, and resume exactly where they left off with the answer.
+skflow compiles TypeScript scripts that mix shell commands (`sh`) with LLM judgment calls (`ask`) into state machines. The compiled scripts yield to an AI agent (like Claude Code) when they need a decision, and resume exactly where they left off with the answer.
 
 ## Why
 
 AI coding agents use markdown "skills" or "commands" to define workflows — but every step runs through the LLM, even deterministic ones like `git diff` or `git commit`. This is slow, expensive, and unreliable.
 
-ocmdx extracts the deterministic parts into a compiled script and only yields back to the LLM for judgment calls:
+skflow extracts the deterministic parts into a compiled script and only yields back to the LLM for judgment calls:
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -18,7 +18,7 @@ ocmdx extracts the deterministic parts into a compiled script and only yields ba
 │  git diff --stat → LLM: read output → LLM: decide   │
 │  commit type → LLM: write message → LLM: run commit │
 ├─────────────────────────────────────────────────────┤
-│  After: ocmdx script (LLM only where needed)        │
+│  After: skflow script (LLM only where needed)        │
 │                                                     │
 │  script: sh(git diff) → sh(git diff --stat) →       │
 │  yield ask("generate commit message") →              │
@@ -30,11 +30,11 @@ ocmdx extracts the deterministic parts into a compiled script and only yields ba
 
 ### 1. Write a script
 
-Place your script in `.ocmdx/skills/<name>/script.ts`:
+Place your script in `.skflow/skills/<name>/script.ts`:
 
 ```typescript
-// .ocmdx/skills/commit/script.ts
-import { sh, ask, done } from "@ocmdx/runtime";
+// .skflow/skills/commit/script.ts
+import { sh, ask, done } from "@skflow/runtime";
 
 export async function main() {
   const staged = await sh("git diff --cached --name-status");
@@ -70,9 +70,9 @@ export async function main() {
 ### 2. Compile to a state machine
 
 ```bash
-cmdx compile commit
-# Reads:  .ocmdx/skills/commit/script.ts
-# Writes: .ocmdx/skills/commit/script.compiled.js
+skflow compile commit
+# Reads:  .skflow/skills/commit/script.ts
+# Writes: .skflow/skills/commit/script.compiled.js
 ```
 
 The transform package parses the TypeScript AST, hoists variables into a state object, and explodes the control flow into a `switch(state.phase)` state machine. Each `sh()`, `ask()`, and `askUser()` call becomes a yield point.
@@ -81,21 +81,21 @@ The transform package parses the TypeScript AST, hoists variables into a state o
 
 ```bash
 # Start the script — runs all sh() calls automatically, pauses at ask()
-cmdx run commit
+skflow run commit
 # → {"yield": {"type": "text", "prompt": "Generate a commit message...", "data": {...}}, "session": "abc123", ...}
 
 # The caller (Claude Code) generates the answer, then resumes
-cmdx resume abc123 --answer="feat: add login\n\nAdded login form and auth integration"
+skflow resume abc123 --answer="feat: add login\n\nAdded login form and auth integration"
 # → {"done": {"summary": "feat: add login"}, "log": [...]}
 ```
 
 ## Project Directory Layout
 
-Scripts live in `.ocmdx/skills/` at your project root:
+Scripts live in `.skflow/skills/` at your project root:
 
 ```
 your-project/
-├── .ocmdx/skills/
+├── .skflow/skills/
 │   └── commit/
 │       ├── script.ts              ← source script
 │       ├── script.compiled.js     ← compiled state machine
@@ -107,10 +107,10 @@ your-project/
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│                    @ocmdx/cli                        │
-│              cmdx run | resume | compile              │
+│                    @skflow/cli                        │
+│              skflow run | resume | compile            │
 ├────────────────────┬────────────────────────────────┤
-│  @ocmdx/transform  │         @ocmdx/runtime          │
+│  @skflow/transform │         @skflow/runtime         │
 │                    │                                  │
 │  TypeScript AST    │  execSh() — run shell commands   │
 │  → hoist variables │  run() — start a session         │
@@ -123,11 +123,11 @@ your-project/
 
 ### Packages
 
-| Package            | Description                                                                         |
-| ------------------ | ----------------------------------------------------------------------------------- |
-| `@ocmdx/runtime`   | Script execution engine: `sh()`, `ask()`, `askUser()`, `done()`, session management |
-| `@ocmdx/transform` | AST compiler: TypeScript source → state machine `step(state, input)` function       |
-| `@ocmdx/cli`       | CLI entry point: `cmdx run`, `cmdx resume`, `cmdx compile`                          |
+| Package             | Description                                                                         |
+| ------------------- | ----------------------------------------------------------------------------------- |
+| `@skflow/runtime`   | Script execution engine: `sh()`, `ask()`, `askUser()`, `done()`, session management |
+| `@skflow/transform` | AST compiler: TypeScript source → state machine `step(state, input)` function       |
+| `@skflow/cli`       | CLI entry point: `skflow run`, `skflow resume`, `skflow compile`                    |
 
 ### Primitives
 
@@ -147,36 +147,36 @@ When a script hits `ask()` or `askUser()`, the process exits with a JSON message
   "yield": { "type": "text", "prompt": "...", "data": {...} },
   "log": [{ "type": "sh", "cmd": "git diff", "code": 0, "stdout": "..." }],
   "session": "uuid",
-  "resume": "cmdx resume uuid"
+  "resume": "skflow resume uuid"
 }
 ```
 
 The caller reads the yield, does whatever it needs (generate an answer, ask the user, fix code), then resumes:
 
 ```bash
-cmdx resume <session-id> --answer="the answer"
+skflow resume <session-id> --answer="the answer"
 ```
 
-Sessions are stored in `os.tmpdir()/cmdx/sessions/` and expire after 15 minutes.
+Sessions are stored in `os.tmpdir()/skflow/sessions/` and expire after 15 minutes.
 
 ## Transform Existing Skills
 
-Have a verbose markdown skill? Transform it into an ocmdx script automatically:
+Have a verbose markdown skill? Transform it into a skflow script automatically:
 
 ```bash
 # Install the transform skill (works with any agent that supports the skills ecosystem)
-npx skills add opencmdx/ocmdx
+npx skills add ChikaFujiwara/skflow
 
 # Then invoke it from your agent
-/ocmdx-transform .claude/commands/commit.md
+/skflow-transform .claude/commands/commit.md
 ```
 
 The transform skill guides the LLM to:
 
 1. Read your original markdown skill
 2. Classify each step as `sh()`, `ask()`, `askUser()`, or `done()`
-3. Generate `.ocmdx/skills/<name>/script.ts`
-4. Backup the original to `.ocmdx/skills/<name>/origin.md`
+3. Generate `.skflow/skills/<name>/script.ts`
+4. Backup the original to `.skflow/skills/<name>/origin.md`
 5. Replace the original with a thin yield-protocol wrapper
 6. Compile the script
 

@@ -1,16 +1,16 @@
 {
-  "name": "@ocmdx/cli",
+  "name": "@skflow/cli",
   "version": "0.1.0",
-  "description": "CLI entry point for ocmdx",
+  "description": "CLI entry point for skflow",
   "repository": {
     "type": "git",
-    "url": "https://github.com/opencmdx/ocmdx.git",
+    "url": "https://github.com/ChikaFujiwara/skflow.git",
     "directory": "packages/cli"
   },
   "license": "MIT",
   "type": "module",
   "bin": {
-    "cmdx": "dist/index.js"
+    "skflow": "dist/index.js"
   },
   "files": [
     "dist"
@@ -22,7 +22,7 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@ocmdx/runtime": "0.1.0",
-    "@ocmdx/transform": "0.1.0"
+    "@skflow/runtime": "0.1.0",
+    "@skflow/transform": "0.1.0"
   }
 }

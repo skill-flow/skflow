@@ -1,17 +1,17 @@
 ---
-name: ocmdx-transform
-description: Transform verbose markdown skills/commands into deterministic ocmdx scripts. Analyzes each step, classifies it as a shell command (sh), LLM judgment (ask), user interaction (askUser), or terminal state (done), then generates a compiled state-machine script that only yields to the LLM when judgment is needed.
+name: skflow-transform
+description: Transform verbose markdown skills/commands into deterministic skflow scripts. Analyzes each step, classifies it as a shell command (sh), LLM judgment (ask), user interaction (askUser), or terminal state (done), then generates a compiled state-machine script that only yields to the LLM when judgment is needed.
 ---
 
-# ocmdx-transform
+# skflow-transform
 
-Transform a verbose markdown skill into a deterministic ocmdx script. The generated script runs shell commands automatically and only pauses for LLM judgment or user input — reducing token usage and improving reliability.
+Transform a verbose markdown skill into a deterministic skflow script. The generated script runs shell commands automatically and only pauses for LLM judgment or user input — reducing token usage and improving reliability.
 
 ## When to Use
 
 Use this skill when you have a markdown skill/command (`.md` file) that walks the LLM through a series of steps, many of which are deterministic (running shell commands, checking output, branching on exit codes). This skill rewrites it into:
 
-1. A TypeScript script using ocmdx primitives (`sh`, `ask`, `askUser`, `done`)
+1. A TypeScript script using skflow primitives (`sh`, `ask`, `askUser`, `done`)
 2. A thin markdown wrapper that delegates to the compiled script via the yield protocol
 
 ## Input
@@ -19,14 +19,14 @@ Use this skill when you have a markdown skill/command (`.md` file) that walks th
 The user provides a path to an existing markdown skill file. For example:
 
 ```
-/ocmdx-transform .claude/commands/commit.md
+/skflow-transform .claude/commands/commit.md
 ```
 
 ## Step 1: Read and Analyze the Original Skill
 
 Read the entire markdown file. Identify every step or instruction in the skill and classify it:
 
-| Pattern in Markdown                                                                                         | ocmdx Primitive         | Meaning                                          |
+| Pattern in Markdown                                                                                         | skflow Primitive        | Meaning                                          |
 | ----------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------ |
 | "Run `<command>`", "Execute `<command>`", bash code blocks with specific commands                           | `sh(cmd)`               | Deterministic shell command — runs automatically |
 | "Analyze the output", "Generate a message", "Decide which type", tables of rules/criteria for LLM to follow | `ask({ prompt, data })` | Requires LLM judgment — script pauses and yields |
@@ -42,10 +42,10 @@ Read the entire markdown file. Identify every step or instruction in the skill a
 
 ## Step 2: Generate script.ts
 
-Create `.ocmdx/skills/<name>/script.ts` with this structure:
+Create `.skflow/skills/<name>/script.ts` with this structure:
 
 ```typescript
-import { sh, ask, askUser, done } from "@ocmdx/runtime";
+import { sh, ask, askUser, done } from "@skflow/runtime";
 
 export async function main() {
   // ... steps using sh(), ask(), askUser(), done()
@@ -62,26 +62,26 @@ export async function main() {
    - `await sh("command", { timeout: 30000 })` — set timeout in milliseconds
 5. **`sh()` returns `{ stdout, stderr, code }`.** Use `result.code` to check exit status, `result.stdout` for output.
 6. **The function MUST return `done()`.** Every code path must end with `return done({ summary: "..." })` or `return done({ summary: "...", data: { ... } })`.
-7. **No try/catch around `sh()` or `ask()` calls.** The ocmdx compiler does not support try/catch around yield points.
+7. **No try/catch around `sh()` or `ask()` calls.** The skflow compiler does not support try/catch around yield points.
 
 ## Step 3: Move the Original and Generate Thin Wrapper
 
-1. **Move** the original `.md` to `.ocmdx/skills/<name>/origin.md` as backup
+1. **Move** the original `.md` to `.skflow/skills/<name>/origin.md` as backup
 2. **Replace** the original `.md` location with a thin wrapper:
 
 ```markdown
 ---
 description: <original skill's description>
-allowed-tools: Bash(cmdx *)
+allowed-tools: Bash(skflow *)
 ---
 
 # <name>
 
-Run the cmdx <name> script and handle the yield protocol.
+Run the skflow <name> script and handle the yield protocol.
 
-1. Run `cmdx run <name>` and parse the JSON output
-2. If yield with type "text": generate the requested answer based on the prompt and data, then `cmdx resume <session> --answer="<answer>"`
-3. If yield with type "ask-user": present the question to the user with AskUserQuestion, then `cmdx resume <session> --answer="<user's answer>"`
+1. Run `skflow run <name>` and parse the JSON output
+2. If yield with type "text": generate the requested answer based on the prompt and data, then `skflow resume <session> --answer="<answer>"`
+3. If yield with type "ask-user": present the question to the user with AskUserQuestion, then `skflow resume <session> --answer="<user's answer>"`
 4. If done: report the summary
 5. On error: report the error message
 ```
@@ -91,10 +91,10 @@ Run the cmdx <name> script and handle the yield protocol.
 Run:
 
 ```bash
-npx @ocmdx/cli compile <name>
+npx @skflow/cli compile <name>
 ```
 
-This reads `.ocmdx/skills/<name>/script.ts` and produces `.ocmdx/skills/<name>/script.compiled.js`.
+This reads `.skflow/skills/<name>/script.ts` and produces `.skflow/skills/<name>/script.compiled.js`.
 
 If compilation fails, read the error messages and fix `script.ts` accordingly. Common issues:
 
@@ -178,10 +178,10 @@ git commit -m "<生成的提交标题>"
 ### 步骤 6：输出结果
 ```
 
-### Output: `.ocmdx/skills/commit/script.ts`
+### Output: `.skflow/skills/commit/script.ts`
 
 ```typescript
-import { sh, ask, done } from "@ocmdx/runtime";
+import { sh, ask, done } from "@skflow/runtime";
 
 export async function main() {
   // Step 1: Check staged files
@@ -240,15 +240,15 @@ export async function main() {
 ```markdown
 ---
 description: Check staged files, auto-generate commit title and commit
-allowed-tools: Bash(cmdx *)
+allowed-tools: Bash(skflow *)
 ---
 
 # commit
 
-Run the cmdx commit script and handle the yield protocol.
+Run the skflow commit script and handle the yield protocol.
 
-1. Run `cmdx run commit` and parse the JSON output
-2. If yield: generate a commit title based on the diff data, then `cmdx resume <session> --answer="<title>"`
+1. Run `skflow run commit` and parse the JSON output
+2. If yield: generate a commit title based on the diff data, then `skflow resume <session> --answer="<title>"`
 3. If yield (ask-user): present the question to the user with AskUserQuestion, then resume with their answer
 4. If done: report the summary
 5. On error: report the error message

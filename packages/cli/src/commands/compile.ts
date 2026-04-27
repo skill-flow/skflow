@@ -1,31 +1,31 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { transform } from "@ocmdx/transform";
+import { transform } from "@skflow/transform";
 
 function findSkillsDir(): string {
-  // Walk up from cwd looking for .ocmdx/skills/
+  // Walk up from cwd looking for .skflow/skills/
   let dir = process.cwd();
   while (true) {
-    const candidate = path.join(dir, ".ocmdx", "skills");
+    const candidate = path.join(dir, ".skflow", "skills");
     if (fs.existsSync(candidate)) return candidate;
     const parent = path.dirname(dir);
     if (parent === dir) break;
     dir = parent;
   }
-  // Default to cwd/.ocmdx/skills/
-  return path.join(process.cwd(), ".ocmdx", "skills");
+  // Default to cwd/.skflow/skills/
+  return path.join(process.cwd(), ".skflow", "skills");
 }
 
 export async function compileCommand(args: string[]): Promise<void> {
   if (args.includes("--help") || args.includes("-h")) {
     console.error(
-      "Usage: cmdx compile <name>\n\nCompile a .ts script to a state machine (.compiled.js).",
+      "Usage: skflow compile <name>\n\nCompile a .ts script to a state machine (.compiled.js).",
     );
     return;
   }
   const name = args[0];
   if (!name) {
-    console.error("Usage: cmdx compile <name>");
+    console.error("Usage: skflow compile <name>");
     process.exit(1);
   }
 

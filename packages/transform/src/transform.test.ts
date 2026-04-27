@@ -18,7 +18,7 @@ function compileAndRun(source: string) {
 describe("transform — sequential (5.9)", () => {
   it("sh → sh → ask → sh → done", () => {
     const source = `
-import { sh, ask, done } from "@ocmdx/runtime";
+import { sh, ask, done } from "@skflow/runtime";
 export async function main() {
   const a = await sh("echo step1");
   const b = await sh("echo step2");
@@ -56,7 +56,7 @@ export async function main() {
 describe("transform — if/else (5.10)", () => {
   it("yield in one branch, done in other", () => {
     const source = `
-import { sh, ask, done } from "@ocmdx/runtime";
+import { sh, ask, done } from "@skflow/runtime";
 export async function main() {
   const diff = await sh("git diff --cached");
   if (!diff) {
@@ -78,7 +78,7 @@ export async function main() {
 describe("transform — while + yield (5.11)", () => {
   it("retry loop with ask inside", () => {
     const source = `
-import { sh, ask, done } from "@ocmdx/runtime";
+import { sh, ask, done } from "@skflow/runtime";
 export async function main() {
   let retries = 0;
   while (retries < 2) {
@@ -103,7 +103,7 @@ export async function main() {
 describe("transform — nested if in while (5.12)", () => {
   it("both branches yield inside a loop", () => {
     const source = `
-import { sh, ask, askUser, done } from "@ocmdx/runtime";
+import { sh, ask, askUser, done } from "@skflow/runtime";
 export async function main() {
   let count = 0;
   while (count < 3) {
@@ -125,7 +125,7 @@ export async function main() {
 describe("transform — for loop (5.13)", () => {
   it("sh inside a for loop", () => {
     const source = `
-import { sh, done } from "@ocmdx/runtime";
+import { sh, done } from "@skflow/runtime";
 export async function main() {
   for (let i = 0; i < 3; i++) {
     const r = await sh("echo " + i);
@@ -144,7 +144,7 @@ export async function main() {
 describe("transform — no yields (5.14)", () => {
   it("pure done script compiles to single useful case", () => {
     const source = `
-import { done } from "@ocmdx/runtime";
+import { done } from "@skflow/runtime";
 export async function main() {
   return done({ summary: "instant" });
 }`;
@@ -159,7 +159,7 @@ export async function main() {
 describe("transform — sh() with options (stdin/timeout)", () => {
   it("sh with stdin option compiles to _sh with stdin field", () => {
     const source = `
-import { sh, done } from "@ocmdx/runtime";
+import { sh, done } from "@skflow/runtime";
 export async function main() {
   const result = await sh("git commit -F -", { stdin: "feat: test" });
   return done({ summary: "ok" });
@@ -175,7 +175,7 @@ export async function main() {
 
   it("sh with timeout option compiles to _sh with timeout field", () => {
     const source = `
-import { sh, done } from "@ocmdx/runtime";
+import { sh, done } from "@skflow/runtime";
 export async function main() {
   const result = await sh("slow-cmd", { timeout: 120000 });
   return done({ summary: "ok" });
@@ -190,7 +190,7 @@ export async function main() {
 
   it("sh with both stdin and timeout", () => {
     const source = `
-import { sh, done } from "@ocmdx/runtime";
+import { sh, done } from "@skflow/runtime";
 export async function main() {
   const result = await sh("cmd", { stdin: "data", timeout: 30000 });
   return done({ summary: "ok" });
@@ -206,7 +206,7 @@ export async function main() {
 
   it("sh without options still works (backward compatible)", () => {
     const source = `
-import { sh, done } from "@ocmdx/runtime";
+import { sh, done } from "@skflow/runtime";
 export async function main() {
   const result = await sh("echo hello");
   return done({ summary: "ok" });
@@ -222,7 +222,7 @@ export async function main() {
 
   it("sh with stdin using state variable", () => {
     const source = `
-import { sh, ask, done } from "@ocmdx/runtime";
+import { sh, ask, done } from "@skflow/runtime";
 export async function main() {
   const message = await ask({ prompt: "commit message?" });
   const result = await sh("git commit -F -", { stdin: message });
@@ -237,7 +237,7 @@ export async function main() {
 
   it("bare sh with options (no assignment)", () => {
     const source = `
-import { sh, done } from "@ocmdx/runtime";
+import { sh, done } from "@skflow/runtime";
 export async function main() {
   await sh("git commit -F -", { stdin: "test message" });
   return done({ summary: "ok" });
@@ -254,7 +254,7 @@ export async function main() {
 describe("transform — unsupported patterns (5.15)", () => {
   it("try/catch across yield produces error", () => {
     const source = `
-import { ask } from "@ocmdx/runtime";
+import { ask } from "@skflow/runtime";
 export async function main() {
   try {
     const x = await ask({ prompt: "test" });
@@ -269,7 +269,7 @@ export async function main() {
 
   it("yield in nested function produces error", () => {
     const source = `
-import { ask } from "@ocmdx/runtime";
+import { ask } from "@skflow/runtime";
 export async function main() {
   const fn = async () => {
     const x = await ask({ prompt: "inner" });

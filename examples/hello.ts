@@ -1,4 +1,4 @@
-import { sh, ask, done } from "@ocmdx/runtime";
+import { sh, ask, done } from "@skflow/runtime";
 
 export async function main() {
   const greeting = await sh("echo hello");

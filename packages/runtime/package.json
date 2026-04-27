@@ -1,10 +1,10 @@
 {
-  "name": "@ocmdx/runtime",
+  "name": "@skflow/runtime",
   "version": "0.1.0",
-  "description": "Runtime library for ocmdx scripts",
+  "description": "Runtime library for skflow scripts",
   "repository": {
     "type": "git",
-    "url": "https://github.com/opencmdx/ocmdx.git",
+    "url": "https://github.com/ChikaFujiwara/skflow.git",
     "directory": "packages/runtime"
   },
   "license": "MIT",

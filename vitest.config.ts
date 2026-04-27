@@ -8,10 +8,10 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@ocmdx/runtime/session": resolve("packages/runtime/src/session.ts"),
-      "@ocmdx/runtime/protocol": resolve("packages/runtime/src/protocol.ts"),
-      "@ocmdx/runtime": resolve("packages/runtime/src/index.ts"),
-      "@ocmdx/transform": resolve("packages/transform/src/index.ts"),
+      "@skflow/runtime/session": resolve("packages/runtime/src/session.ts"),
+      "@skflow/runtime/protocol": resolve("packages/runtime/src/protocol.ts"),
+      "@skflow/runtime": resolve("packages/runtime/src/index.ts"),
+      "@skflow/transform": resolve("packages/transform/src/index.ts"),
     },
   },
 });

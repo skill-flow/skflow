@@ -111,7 +111,7 @@ The transformer SHALL use TypeScript Compiler API (`ts.transform`) to parse and 
 #### Scenario: Input and output are both TypeScript
 
 - **WHEN** transformer processes `commit.ts`
-- **THEN** output is `commit.compiled.ts`, a valid TypeScript file that imports from `@ocmdx/runtime`
+- **THEN** output is `commit.compiled.ts`, a valid TypeScript file that imports from `@skflow/runtime`
 
 #### Scenario: Original line references preserved
 

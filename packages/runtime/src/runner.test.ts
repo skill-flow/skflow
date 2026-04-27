@@ -60,7 +60,7 @@ describe("run", () => {
       expect(result1.log).toHaveLength(1);
       expect(result1.log[0].cmd).toBe("echo hello");
       expect(result1.session).toBeTruthy();
-      expect(result1.resume).toContain("cmdx resume");
+      expect(result1.resume).toContain("skflow resume");
 
       // Now resume with an answer
       cleanupIds.push(result1.session);

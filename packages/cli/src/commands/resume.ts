@@ -1,19 +1,19 @@
 import * as fs from "node:fs";
 import { pathToFileURL } from "node:url";
-import { resume, RuntimeError } from "@ocmdx/runtime";
-import { loadMeta } from "@ocmdx/runtime/session";
-import type { StepFunction } from "@ocmdx/runtime";
+import { resume, RuntimeError } from "@skflow/runtime";
+import { loadMeta } from "@skflow/runtime/session";
+import type { StepFunction } from "@skflow/runtime";
 
 export async function resumeCommand(args: string[]): Promise<void> {
   if (args.includes("--help") || args.includes("-h")) {
     console.error(
-      "Usage: cmdx resume <session-id> [--answer=<text> | --answer-file=<path>]\n\nResume a paused session with an answer.",
+      "Usage: skflow resume <session-id> [--answer=<text> | --answer-file=<path>]\n\nResume a paused session with an answer.",
     );
     return;
   }
   const sessionId = args[0];
   if (!sessionId) {
-    console.error("Usage: cmdx resume <session-id> [--answer=<text> | --answer-file=<path>]");
+    console.error("Usage: skflow resume <session-id> [--answer=<text> | --answer-file=<path>]");
     process.exit(1);
   }
 

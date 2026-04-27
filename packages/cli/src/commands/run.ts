@@ -1,13 +1,13 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
-import { run, RuntimeError } from "@ocmdx/runtime";
-import type { StepFunction } from "@ocmdx/runtime";
+import { run, RuntimeError } from "@skflow/runtime";
+import type { StepFunction } from "@skflow/runtime";
 
 function findCompiledScript(name: string): string | null {
   let dir = process.cwd();
   while (true) {
-    const candidate = path.join(dir, ".ocmdx", "skills", name, "script.compiled.js");
+    const candidate = path.join(dir, ".skflow", "skills", name, "script.compiled.js");
     if (fs.existsSync(candidate)) return candidate;
     const parent = path.dirname(dir);
     if (parent === dir) break;
@@ -19,20 +19,20 @@ function findCompiledScript(name: string): string | null {
 export async function runCommand(args: string[]): Promise<void> {
   if (args.includes("--help") || args.includes("-h")) {
     console.error(
-      "Usage: cmdx run <name>\n\nRun a compiled cmdx script. Creates a session, executes from phase 0,\nand outputs JSON (yield or done) to stdout.",
+      "Usage: skflow run <name>\n\nRun a compiled skflow script. Creates a session, executes from phase 0,\nand outputs JSON (yield or done) to stdout.",
     );
     return;
   }
   const name = args[0];
   if (!name) {
-    console.error("Usage: cmdx run <name>");
+    console.error("Usage: skflow run <name>");
     process.exit(1);
   }
 
   const scriptPath = findCompiledScript(name);
   if (!scriptPath) {
     console.error(`Compiled script not found: ${name}.compiled.js`);
-    console.error("Run 'cmdx compile " + name + "' first.");
+    console.error("Run 'skflow compile " + name + "' first.");
     process.exit(1);
   }
 
