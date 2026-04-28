@@ -26,11 +26,61 @@ skflow extracts the deterministic parts into a compiled script and only yields b
 └─────────────────────────────────────────────────────┘
 ```
 
+## Quick Start
+
+Install the skill and transform any existing markdown skill into a skflow script:
+
+```bash
+# Install (works with Claude Code, Cursor, Codex, and other agents)
+npx skills add ChikaFujiwara/skflow
+
+# Transform an existing skill
+/skflow-transform .claude/commands/commit.md
+```
+
+That's it. The transform skill will:
+
+1. Read your original markdown skill
+2. Classify each step as `sh()` (deterministic), `ask()` (needs LLM), `askUser()` (needs human), or `done()` (terminal)
+3. Generate `.skflow/skills/<name>/script.ts`
+4. Backup the original to `.skflow/skills/<name>/origin.md`
+5. Replace the original `.md` with a thin yield-protocol wrapper
+6. Compile the script to a state machine
+
+Your skill now runs shell commands at native speed and only pauses for LLM judgment.
+
 ## How It Works
 
-### 1. Write a script
+### The yield protocol
 
-Place your script in `.skflow/skills/<name>/script.ts`:
+When you run a compiled script, it executes all `sh()` calls automatically and pauses at `ask()` or `askUser()`:
+
+```bash
+skflow run commit
+# → {"yield": {"type": "text", "prompt": "Generate a commit message...", "data": {...}}, "session": "abc123", ...}
+
+# The agent generates the answer, then resumes
+skflow resume abc123 --answer="feat: add login\n\nAdded login form and auth integration"
+# → {"done": {"summary": "feat: add login"}, "log": [...]}
+```
+
+The thin markdown wrapper handles this protocol — your agent reads the yield, answers the prompt, and resumes. No manual intervention needed.
+
+### Directory layout
+
+```
+your-project/
+├── .skflow/skills/
+│   └── commit/
+│       ├── script.ts              ← generated source script
+│       ├── script.compiled.js     ← compiled state machine
+│       └── origin.md              ← original skill backup
+└── .claude/commands/commit.md     ← thin wrapper (yield protocol)
+```
+
+## Writing Scripts Manually
+
+For advanced use cases, you can write skflow scripts directly:
 
 ```typescript
 // .skflow/skills/commit/script.ts
@@ -50,58 +100,27 @@ export async function main() {
   });
 
   const result = await sh("git commit -F -", { stdin: message });
-
-  if (result.code === 0) {
-    return done({ summary: message.split("\n")[0] });
-  }
-
-  // pre-commit failed — yield back so the caller can fix
-  const fix = await ask({
-    prompt: "Pre-commit hook failed. Please fix the issues and resume.",
-    data: { stderr: result.stderr },
-  });
-
-  await sh("git add -u");
-  const retry = await sh("git commit -F -", { stdin: message });
-  return done({ summary: message.split("\n")[0], data: { retry } });
+  return done({ summary: message.split("\n")[0] });
 }
 ```
 
-### 2. Compile to a state machine
+Then compile and run:
 
 ```bash
-skflow compile commit
-# Reads:  .skflow/skills/commit/script.ts
-# Writes: .skflow/skills/commit/script.compiled.js
+skflow compile commit    # → .skflow/skills/commit/script.compiled.js
+skflow run commit        # → executes, yields at ask()
 ```
 
-The transform package parses the TypeScript AST, hoists variables into a state object, and explodes the control flow into a `switch(state.phase)` state machine. Each `sh()`, `ask()`, and `askUser()` call becomes a yield point.
+### Primitives
 
-### 3. Run it
+| Function                 | What it does                                             | Yield type                         |
+| ------------------------ | -------------------------------------------------------- | ---------------------------------- |
+| `sh(cmd, opts?)`         | Execute a shell command, return `{stdout, stderr, code}` | Internal (auto-resumed by runtime) |
+| `ask({prompt, data?})`   | Pause and ask the LLM for a judgment call                | External (`type: "text"`)          |
+| `askUser({question})`    | Pause and ask the human user                             | External (`type: "ask-user"`)      |
+| `done({summary, data?})` | Terminate the script with a result                       | Terminal                           |
 
-```bash
-# Start the script — runs all sh() calls automatically, pauses at ask()
-skflow run commit
-# → {"yield": {"type": "text", "prompt": "Generate a commit message...", "data": {...}}, "session": "abc123", ...}
-
-# The caller (Claude Code) generates the answer, then resumes
-skflow resume abc123 --answer="feat: add login\n\nAdded login form and auth integration"
-# → {"done": {"summary": "feat: add login"}, "log": [...]}
-```
-
-## Project Directory Layout
-
-Scripts live in `.skflow/skills/` at your project root:
-
-```
-your-project/
-├── .skflow/skills/
-│   └── commit/
-│       ├── script.ts              ← source script
-│       ├── script.compiled.js     ← compiled state machine
-│       └── origin.md              ← original skill backup (if transformed)
-└── .claude/commands/commit.md     ← thin wrapper (yield protocol)
-```
+`sh()` options: `{ stdin: string, timeout: number }`
 
 ## Architecture
 
@@ -121,80 +140,18 @@ your-project/
 └────────────────────┴────────────────────────────────┘
 ```
 
-### Packages
-
 | Package             | Description                                                                         |
 | ------------------- | ----------------------------------------------------------------------------------- |
 | `@skflow/runtime`   | Script execution engine: `sh()`, `ask()`, `askUser()`, `done()`, session management |
 | `@skflow/transform` | AST compiler: TypeScript source → state machine `step(state, input)` function       |
 | `@skflow/cli`       | CLI entry point: `skflow run`, `skflow resume`, `skflow compile`                    |
 
-### Primitives
-
-| Function                 | What it does                                             | Yield type                         |
-| ------------------------ | -------------------------------------------------------- | ---------------------------------- |
-| `sh(cmd, opts?)`         | Execute a shell command, return `{stdout, stderr, code}` | Internal (auto-resumed by runtime) |
-| `ask({prompt, data?})`   | Pause and ask the LLM for a judgment call                | External (`type: "text"`)          |
-| `askUser({question})`    | Pause and ask the human user                             | External (`type: "ask-user"`)      |
-| `done({summary, data?})` | Terminate the script with a result                       | Terminal                           |
-
-### Yield Protocol
-
-When a script hits `ask()` or `askUser()`, the process exits with a JSON message:
-
-```json
-{
-  "yield": { "type": "text", "prompt": "...", "data": {...} },
-  "log": [{ "type": "sh", "cmd": "git diff", "code": 0, "stdout": "..." }],
-  "session": "uuid",
-  "resume": "skflow resume uuid"
-}
-```
-
-The caller reads the yield, does whatever it needs (generate an answer, ask the user, fix code), then resumes:
-
-```bash
-skflow resume <session-id> --answer="the answer"
-```
-
-Sessions are stored in `os.tmpdir()/skflow/sessions/` and expire after 15 minutes.
-
-## Transform Existing Skills
-
-Have a verbose markdown skill? Transform it into a skflow script automatically:
-
-```bash
-# Install the transform skill (works with any agent that supports the skills ecosystem)
-npx skills add ChikaFujiwara/skflow
-
-# Then invoke it from your agent
-/skflow-transform .claude/commands/commit.md
-```
-
-The transform skill guides the LLM to:
-
-1. Read your original markdown skill
-2. Classify each step as `sh()`, `ask()`, `askUser()`, or `done()`
-3. Generate `.skflow/skills/<name>/script.ts`
-4. Backup the original to `.skflow/skills/<name>/origin.md`
-5. Replace the original with a thin yield-protocol wrapper
-6. Compile the script
-
 ## Development
 
 ```bash
-# Install dependencies
 npm install
-
-# Build all packages
 npm run build
-
-# Run tests
 npm test
-
-# Lint & format
-npm run lint
-npm run format
 ```
 
 ## License
