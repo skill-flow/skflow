@@ -5,226 +5,226 @@ allowed-tools: Bash(git diff:*), Bash(git status:*), Bash(git commit:*), Bash(gi
 
 # commit
 
-检查 git 工作区中已 staged 的文件，根据修改内容自动生成不超过 80 字符的英文提交标题并自动提交。
+Check staged files in the git working tree, auto-generate an English commit title (max 80 characters) based on the changes, and commit.
 
-**硬规则：禁止自动使用 `--no-verify`。** 任何情况下 commit skill 不得自行添加 `--no-verify` 绕过 pre-commit hook。只有用户明确选择时才可使用。
+**Hard rule: NEVER use `--no-verify` automatically.** Under no circumstances should this skill add `--no-verify` to bypass the pre-commit hook. Only use it when the user explicitly chooses to.
 
-## 使用方法
+## Usage
 
 ```bash
 /commit
 ```
 
-## 执行流程
+## Execution Flow
 
-### 步骤 1：检查 staged 文件
+### Step 1: Check staged files
 
-执行以下命令查看已暂存的文件：
+Run the following command to see staged files:
 
 ```bash
 git diff --cached --name-status
 ```
 
-**如果没有 staged 文件**，输出提示并结束：
+**If there are no staged files**, output a hint and stop:
 
 ```
-没有已暂存的文件。
+No staged files found.
 
-请先使用 git add 添加要提交的文件：
-  git add <file>        # 添加指定文件
-  git add .             # 添加所有修改
-  git add -p            # 交互式添加
+Please stage files first using git add:
+  git add <file>        # Add specific file
+  git add .             # Add all changes
+  git add -p            # Interactive staging
 ```
 
-### 步骤 2：获取变更详情
+### Step 2: Get change details
 
-获取 staged 文件的具体修改内容：
+Get the specific changes in staged files:
 
 ```bash
 git diff --cached --stat
 git diff --cached
 ```
 
-### 步骤 3：分析变更类型
+### Step 3: Determine change type
 
-根据修改内容判断变更类型：
+Classify the change type based on the modifications:
 
-| Type       | 判断条件                                 |
-| ---------- | ---------------------------------------- |
-| `feat`     | 新增文件、新增功能函数/组件/模块         |
-| `fix`      | 修复 bug、修正错误逻辑                   |
-| `refactor` | 重命名、移动文件、重构代码（无功能变更） |
-| `perf`     | 性能优化相关修改                         |
-| `docs`     | 仅修改文档文件（.md、注释等）            |
-| `style`    | 代码格式化、空格、缩进等（无功能变更）   |
-| `test`     | 添加或修改测试代码                       |
-| `chore`    | 构建配置、依赖更新、CI/CD 相关           |
+| Type       | Criteria                                                      |
+| ---------- | ------------------------------------------------------------- |
+| `feat`     | New files, new functions/components/modules                   |
+| `fix`      | Bug fixes, correcting faulty logic                            |
+| `refactor` | Renames, file moves, code restructuring (no behavior change)  |
+| `perf`     | Performance-related changes                                   |
+| `docs`     | Documentation-only changes (.md, comments, etc.)              |
+| `style`    | Code formatting, whitespace, indentation (no behavior change) |
+| `test`     | Adding or modifying test code                                 |
+| `chore`    | Build config, dependency updates, CI/CD                       |
 
-### 步骤 4：生成提交标题
+### Step 4: Generate commit title
 
-**格式**：
+**Format**:
 
 ```
 <type>: <description>
 ```
 
-**规则**：
+**Rules**:
 
-1. **总长度不超过 80 字符**
-2. **使用英文**
-3. **使用简单易懂的词汇和语法**
-4. **动词使用原形**（add, fix, update, remove, refactor）
-5. **不要以句号结尾**
-6. **小写开头**（type 后的描述部分）
+1. **Total length must not exceed 80 characters**
+2. **Use English**
+3. **Use simple, clear vocabulary and grammar**
+4. **Use base-form verbs** (add, fix, update, remove, refactor)
+5. **Do not end with a period**
+6. **Lowercase start** (the description part after the type)
 
-**示例**：
+**Examples**:
 
-| 变更内容         | 生成标题                                      |
-| ---------------- | --------------------------------------------- |
-| 新增用户登录组件 | `feat: add user login component`              |
-| 修复空指针异常   | `fix: handle null pointer in payment service` |
-| 重命名变量       | `refactor: rename userId to accountId`        |
-| 更新 README      | `docs: update installation guide`             |
-| 添加单元测试     | `test: add unit tests for auth module`        |
-| 升级依赖版本     | `chore: upgrade react to v18.2`               |
-| 优化查询性能     | `perf: optimize database query in search`     |
-| 格式化代码       | `style: format code with prettier`            |
+| Change                     | Generated title                               |
+| -------------------------- | --------------------------------------------- |
+| Add user login component   | `feat: add user login component`              |
+| Fix null pointer exception | `fix: handle null pointer in payment service` |
+| Rename variable            | `refactor: rename userId to accountId`        |
+| Update README              | `docs: update installation guide`             |
+| Add unit tests             | `test: add unit tests for auth module`        |
+| Upgrade dependency         | `chore: upgrade react to v18.2`               |
+| Optimize query performance | `perf: optimize database query in search`     |
+| Format code                | `style: format code with prettier`            |
 
-**多文件变更时**：
+**When multiple files are changed**:
 
-- 聚焦主要变更，不要罗列所有文件
-- 使用概括性描述（如 "update auth module" 而不是 "update login.ts and logout.ts and session.ts"）
+- Focus on the primary change, don't list every file
+- Use a general description (e.g., "update auth module" instead of "update login.ts and logout.ts and session.ts")
 
-### 步骤 5：执行 git commit
+### Step 5: Execute git commit
 
-生成标题后，自动执行提交：
+After generating the title, commit automatically:
 
 ```bash
-git commit -m "<生成的提交标题>"
+git commit -m "<generated commit title>"
 ```
 
-**如果提交成功**，跳到步骤 6。
+**If commit succeeds**, go to Step 6.
 
-**如果提交失败**（pre-commit hook 报错），进入 **步骤 5a：自动修复流程**。
+**If commit fails** (pre-commit hook error), enter **Step 5a: Auto-fix flow**.
 
-### 步骤 5a：Pre-commit Hook 失败自动修复
+### Step 5a: Pre-commit hook failure auto-fix
 
-当 `git commit` 因 pre-commit hook 失败时，**不得添加 `--no-verify`**，而是尝试自动修复。
+When `git commit` fails due to a pre-commit hook, **do NOT add `--no-verify`**. Instead, attempt to auto-fix.
 
-#### 5a.1 解析错误输出
+#### 5a.1 Parse error output
 
-分析 hook 的错误输出，识别错误类型：
+Analyze the hook's error output and identify the error type:
 
-| 错误类型            | 识别特征                                       | 修复策略                                           |
-| ------------------- | ---------------------------------------------- | -------------------------------------------------- |
-| **Type Check**      | `tsc`、`TS2322`、`TS2345` 等 TypeScript 错误码 | 读取报错文件，分析类型不匹配原因，用 Edit 修改代码 |
-| **ESLint**          | `eslint`、规则名如 `no-unused-vars`            | 执行 `npx eslint --fix <files>`                    |
-| **Prettier/Format** | `prettier`、`formatting`                       | 执行 `npx prettier --write <files>`                |
-| **其他**            | 无法归类的错误                                 | 读取报错信息，尝试定位文件和行号进行修复           |
+| Error Type          | Identification                                    | Fix Strategy                                        |
+| ------------------- | ------------------------------------------------- | --------------------------------------------------- |
+| **Type Check**      | `tsc`, `TS2322`, `TS2345` or other TS error codes | Read the file, analyze type mismatch, fix with Edit |
+| **ESLint**          | `eslint`, rule names like `no-unused-vars`        | Run `npx eslint --fix <files>`                      |
+| **Prettier/Format** | `prettier`, `formatting`                          | Run `npx prettier --write <files>`                  |
+| **Other**           | Unclassifiable errors                             | Read error info, locate file and line, attempt fix  |
 
-#### 5a.2 执行修复
+#### 5a.2 Execute fix
 
-根据错误类型执行对应修复操作：
+Based on the error type, perform the appropriate fix:
 
-1. **读取报错文件**：用 Read 工具查看报错位置的上下文
-2. **分析问题根因**：理解为什么会报错（类型不匹配、未使用变量、格式问题等）
-3. **修复代码**：
-   - 简单问题（lint/format）→ 用 Bash 执行自动修复命令
-   - 复杂问题（类型错误）→ 用 Edit 工具精确修改代码
-4. **重新 stage**：`git add <修复的文件>`
-5. **重新 commit**：`git commit -m "<同一个提交标题>"`（不加 `--no-verify`）
+1. **Read the failing file**: Use Read tool to view the context around the error
+2. **Analyze root cause**: Understand why it fails (type mismatch, unused variable, formatting, etc.)
+3. **Fix the code**:
+   - Simple issues (lint/format) → Run auto-fix commands via Bash
+   - Complex issues (type errors) → Use Edit tool to precisely modify code
+4. **Re-stage**: `git add <fixed files>`
+5. **Re-commit**: `git commit -m "<same commit title>"` (without `--no-verify`)
 
-#### 5a.3 重试限制
+#### 5a.3 Retry limit
 
-- 最多重试 **2 次**（即：首次 commit 失败 → 修复 → 第 1 次重试 → 若再失败 → 修复 → 第 2 次重试）
-- 如果修复后 diff 为空（修复没有实际效果），**不做无意义重试**，直接进入降级流程
+- Maximum **2 retries** (i.e., initial commit fails → fix → 1st retry → if fails again → fix → 2nd retry)
+- If the fix produces an empty diff (fix had no actual effect), **skip pointless retries** and go to fallback
 
-#### 5a.4 降级流程（2 次重试都失败）
+#### 5a.4 Fallback flow (both retries failed)
 
-展示剩余错误的详细信息，然后用 `AskUserQuestion` 询问用户：
+Show detailed remaining errors, then use `AskUserQuestion` to ask the user.
 
-提供 3 个选项：
+Provide 3 options:
 
-1. **用户手动修复** — 展示完整错误列表后停止，用户自行处理
-2. **跳过 hook 强制提交** — 使用 `git commit --no-verify -m "<标题>"`（仅在用户明确选择时）
-3. **取消提交** — 放弃本次提交，保留 staged 状态
+1. **Manual fix** — Show full error list and stop, let user handle it
+2. **Skip hook and force commit** — Use `git commit --no-verify -m "<title>"` (only when user explicitly chooses)
+3. **Cancel commit** — Abort the commit, keep files staged
 
-### 步骤 6：输出结果
+### Step 6: Output result
 
-输出提交结果：
+Output the commit result:
 
 ```
-提交成功
+Commit successful
 
 <type>: <description>
 
-[分支名 abc1234] <type>: <description>
+[branch-name abc1234] <type>: <description>
  3 files changed, 150 insertions(+), 20 deletions(-)
 ```
 
-如果经过了自动修复流程，额外输出修复摘要：
+If the auto-fix flow was triggered, also output a fix summary:
 
 ```
-自动修复了 pre-commit hook 错误（第 N 次重试成功）：
-- <file1>: <修复描述>
-- <file2>: <修复描述>
+Auto-fixed pre-commit hook errors (succeeded on retry N):
+- <file1>: <fix description>
+- <file2>: <fix description>
 ```
 
-## 词汇指南
+## Vocabulary Guide
 
-**推荐使用的动词**：
+**Recommended verbs**:
 
-| 动词     | 适用场景               |
-| -------- | ---------------------- |
-| add      | 新增文件、功能、依赖   |
-| fix      | 修复 bug、错误         |
-| update   | 更新现有功能、配置     |
-| remove   | 删除文件、代码、功能   |
-| refactor | 重构代码（无功能变更） |
-| rename   | 重命名文件、变量、函数 |
-| move     | 移动文件位置           |
-| improve  | 改进性能、可读性       |
-| simplify | 简化代码逻辑           |
-| support  | 添加对某功能的支持     |
-| handle   | 处理某种情况、错误     |
-| replace  | 替换实现方式           |
+| Verb     | Use case                              |
+| -------- | ------------------------------------- |
+| add      | New files, features, dependencies     |
+| fix      | Bug fixes, errors                     |
+| update   | Update existing features, configs     |
+| remove   | Delete files, code, features          |
+| refactor | Restructure code (no behavior change) |
+| rename   | Rename files, variables, functions    |
+| move     | Move file locations                   |
+| improve  | Improve performance, readability      |
+| simplify | Simplify code logic                   |
+| support  | Add support for a feature             |
+| handle   | Handle a case or error                |
+| replace  | Replace an implementation             |
 
-**避免使用的词汇**：
+**Avoid**:
 
-- 过于复杂的单词（如 implement → 用 add）
-- 模糊的描述（如 "some changes", "minor updates"）
-- 缩写（除非是通用缩写如 API, URL, ID）
+- Overly complex words (e.g., use "add" instead of "implement")
+- Vague descriptions (e.g., "some changes", "minor updates")
+- Abbreviations (unless universally understood like API, URL, ID)
 
-## 特殊场景处理
+## Special Scenarios
 
-### 场景 1：混合多种类型的变更
+### Scenario 1: Mixed change types
 
-如果同时包含多种类型的修改，选择**主要变更**的类型。优先级：
+If changes span multiple types, choose the **primary change** type. Priority:
 
 ```
 feat > fix > refactor > perf > docs > style > test > chore
 ```
 
-### 场景 2：无法确定变更目的
+### Scenario 2: Unclear change purpose
 
-如果从代码修改无法明确判断目的，使用最保守的类型：
+If the purpose cannot be clearly determined from the code changes, use the most conservative type:
 
-- 有新文件 → `feat`
-- 只修改现有文件 → `refactor` 或 `chore`
+- New files present → `feat`
+- Only existing files modified → `refactor` or `chore`
 
-### 场景 3：大量文件变更
+### Scenario 3: Large number of files changed
 
-当修改文件超过 10 个时：
+When more than 10 files are modified:
 
-- 尝试找出共同主题（如 "update all api endpoints"）
-- 如果无共同主题，使用 "refactor: update multiple modules"
+- Try to find a common theme (e.g., "update all api endpoints")
+- If no common theme, use "refactor: update multiple modules"
 
-## 错误处理
+## Error Handling
 
-| 问题                 | 操作                                                 |
-| -------------------- | ---------------------------------------------------- |
-| 不在 git 仓库中      | 提示 "当前目录不是 git 仓库"                         |
-| 没有 staged 文件     | 提示添加文件的命令                                   |
-| git 命令执行失败     | 显示原始错误信息                                     |
-| pre-commit hook 失败 | 进入自动修复流程（步骤 5a），最多重试 2 次后询问用户 |
-| hook 超时            | 按失败处理，进入降级流程                             |
+| Problem                 | Action                                                       |
+| ----------------------- | ------------------------------------------------------------ |
+| Not in a git repository | Show "Current directory is not a git repository"             |
+| No staged files         | Show commands for staging files                              |
+| Git command fails       | Display the original error message                           |
+| Pre-commit hook fails   | Enter auto-fix flow (Step 5a), ask user after 2 retries fail |
+| Hook timeout            | Treat as failure, enter fallback flow                        |

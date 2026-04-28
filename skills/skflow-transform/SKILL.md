@@ -113,69 +113,69 @@ allowed-tools: Bash(git diff:*), Bash(git status:*), Bash(git commit:*), Bash(gi
 
 # commit
 
-检查 git 工作区中已 staged 的文件，根据修改内容自动生成不超过 80 字符的英文提交标题并自动提交。
+Check staged files in the git working tree, auto-generate an English commit title (max 80 chars) based on changes, and commit.
 
-**硬规则：禁止自动使用 `--no-verify`。** 任何情况下 commit skill 不得自行添加 `--no-verify` 绕过 pre-commit hook。只有用户明确选择时才可使用。
+**Hard rule: NEVER use `--no-verify` automatically.** Only use it when the user explicitly chooses to.
 
-## 使用方法
+## Usage
 
 /commit
 
-## 执行流程
+## Execution Flow
 
-### 步骤 1：检查 staged 文件
+### Step 1: Check staged files
 
-执行以下命令查看已暂存的文件：
+Run the following command to see staged files:
 
 git diff --cached --name-status
 
-**如果没有 staged 文件**，输出提示并结束。
+**If no staged files**, output a hint and stop.
 
-### 步骤 2：获取变更详情
+### Step 2: Get change details
 
 git diff --cached --stat
 git diff --cached
 
-### 步骤 3：分析变更类型
+### Step 3: Determine change type
 
-根据修改内容判断变更类型：
+Classify the change type based on modifications:
 
-| Type     | 判断条件                                 |
-| -------- | ---------------------------------------- |
-| feat     | 新增文件、新增功能函数/组件/模块         |
-| fix      | 修复 bug、修正错误逻辑                   |
-| refactor | 重命名、移动文件、重构代码（无功能变更） |
-| perf     | 性能优化相关修改                         |
-| docs     | 仅修改文档文件（.md、注释等）            |
-| style    | 代码格式化、空格、缩进等（无功能变更）   |
-| test     | 添加或修改测试代码                       |
-| chore    | 构建配置、依赖更新、CI/CD 相关           |
+| Type     | Criteria                                                 |
+| -------- | -------------------------------------------------------- |
+| feat     | New files, new functions/components/modules              |
+| fix      | Bug fixes, correcting faulty logic                       |
+| refactor | Renames, file moves, restructuring (no behavior change)  |
+| perf     | Performance-related changes                              |
+| docs     | Documentation-only changes (.md, comments)               |
+| style    | Formatting, whitespace, indentation (no behavior change) |
+| test     | Adding or modifying test code                            |
+| chore    | Build config, dependency updates, CI/CD                  |
 
-### 步骤 4：生成提交标题
+### Step 4: Generate commit title
 
-格式: <type>: <description>
+Format: <type>: <description>
 
-规则：
+Rules:
 
-1. 总长度不超过 80 字符
-2. 使用英文
-3. 使用简单易懂的词汇和语法
-4. 动词使用原形（add, fix, update, remove, refactor）
-5. 不要以句号结尾
-6. 小写开头（type 后的描述部分）
+1. Total length max 80 characters
+2. Use English
+3. Use simple, clear vocabulary
+4. Use base-form verbs (add, fix, update, remove, refactor)
+5. Do not end with a period
+6. Lowercase start (description part after type)
 
-### 步骤 5：执行 git commit
+### Step 5: Execute git commit
 
-git commit -m "<生成的提交标题>"
+git commit -m "<generated title>"
 
-如果提交失败（pre-commit hook 报错），进入自动修复流程。
+If commit fails (pre-commit hook error), enter auto-fix flow.
 
-### 步骤 5a：Pre-commit Hook 失败自动修复
+### Step 5a: Pre-commit hook failure auto-fix
 
-分析错误输出，修复代码问题，重新 stage，重试 commit。
-最多重试 2 次，失败后询问用户（手动修复 / 跳过hook / 取消）。
+Analyze error output, fix code issues, re-stage, retry commit.
+Max 2 retries, then ask user (manual fix / skip hook / cancel).
 
-### 步骤 6：输出结果
+### Step 6: Output result
 ```
 
 ### Output: `.skflow/skills/commit/script.ts`
