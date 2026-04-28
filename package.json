@@ -2,14 +2,12 @@
   "name": "skflow",
   "type": "module",
   "private": true,
+  "packageManager": "pnpm@10.15.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/ChikaFujiwara/skflow.git"
   },
   "license": "MIT",
-  "workspaces": [
-    "packages/*"
-  ],
   "scripts": {
     "build": "tsc -p packages/runtime && tsc -p packages/transform && tsc -p packages/cli",
     "test": "vitest run",

@@ -1,6 +1,6 @@
 {
   "name": "@skflow/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "CLI entry point for skflow",
   "repository": {
     "type": "git",
@@ -22,7 +22,7 @@
     "build": "tsc"
   },
   "dependencies": {
-    "@skflow/runtime": "0.1.0",
-    "@skflow/transform": "0.1.0"
+    "@skflow/runtime": "workspace:*",
+    "@skflow/transform": "workspace:*"
   }
 }

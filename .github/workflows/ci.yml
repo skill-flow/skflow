@@ -11,13 +11,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build
-      - run: npm test
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: pnpm test
 
   publish:
     needs: test
@@ -29,16 +30,17 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
           registry-url: https://registry.npmjs.org
-      - run: npm ci
-      - run: npm run build
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
       - name: Publish @skflow/runtime
-        run: cd packages/runtime && npm publish --access public --provenance || true
+        run: cd packages/runtime && pnpm publish --access public --provenance --no-git-checks || true
       - name: Publish @skflow/transform
-        run: cd packages/transform && npm publish --access public --provenance || true
+        run: cd packages/transform && pnpm publish --access public --provenance --no-git-checks || true
       - name: Publish @skflow/cli
-        run: cd packages/cli && npm publish --access public --provenance || true
+        run: cd packages/cli && pnpm publish --access public --provenance --no-git-checks || true
