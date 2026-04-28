@@ -3,14 +3,11 @@ export function step(state, input) {
   while (true) {
     switch (state.phase) {
       case 0:
-        return {
-          _sh: { cmd: "git describe --tags --abbrev=0 2>/dev/null || echo none" },
-          next: { ...state, phase: 1 },
-        };
+        return { _sh: { cmd: "git describe --tags --abbrev=0" }, next: { ...state, phase: 1 } };
       case 1:
         state.tagResult = JSON.parse(input);
         state.lastTag = state.tagResult.stdout.trim();
-        if (state.lastTag === "none") {
+        if (state.tagResult.code !== 0 || !state.lastTag) {
           state.phase = 2;
           continue;
         } else {
@@ -100,65 +97,68 @@ If a package has no changes, omit it.`,
         state.bumpDecision = input;
         state.updateScript = `
 const fs = require('fs');
-const bumps = JSON.parse(process.argv[1]);
-const results = [];
+let input = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', d => input += d);
+process.stdin.on('end', () => {
+  const bumps = JSON.parse(input);
+  const results = [];
 
-function bumpVersion(version, type) {
-  const [major, minor, patch] = version.split('.').map(Number);
-  if (type === 'major') return (major + 1) + '.0.0';
-  if (type === 'minor') return major + '.' + (minor + 1) + '.0';
-  return major + '.' + minor + '.' + (patch + 1);
-}
-
-const packageDirs = { runtime: 'packages/runtime', transform: 'packages/transform', cli: 'packages/cli' };
-const newVersions = {};
-
-// Bump each package
-for (const [pkg, type] of Object.entries(bumps)) {
-  const pkgPath = packageDirs[pkg] + '/package.json';
-  if (!fs.existsSync(pkgPath)) continue;
-  const json = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-  const oldVersion = json.version;
-  json.version = bumpVersion(oldVersion, type);
-  newVersions['@skflow/' + pkg] = json.version;
-  fs.writeFileSync(pkgPath, JSON.stringify(json, null, 2) + '\\n');
-  results.push(pkg + ': ' + oldVersion + ' → ' + json.version + ' (' + type + ')');
-}
-
-// Update cross-references in cli's package.json
-const cliPkgPath = 'packages/cli/package.json';
-if (fs.existsSync(cliPkgPath)) {
-  const cliJson = JSON.parse(fs.readFileSync(cliPkgPath, 'utf8'));
-  let updated = false;
-  for (const [name, ver] of Object.entries(newVersions)) {
-    if (cliJson.dependencies && cliJson.dependencies[name]) {
-      cliJson.dependencies[name] = 'workspace:*';
-      updated = true;
-    }
+  function bumpVersion(version, type) {
+    const [major, minor, patch] = version.split('.').map(Number);
+    if (type === 'major') return (major + 1) + '.0.0';
+    if (type === 'minor') return major + '.' + (minor + 1) + '.0';
+    return major + '.' + minor + '.' + (patch + 1);
   }
-  if (updated) fs.writeFileSync(cliPkgPath, JSON.stringify(cliJson, null, 2) + '\\n');
-}
 
-// Bump root package.json to highest new version
-const rootPkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-const allNewVersions = Object.values(newVersions);
-if (allNewVersions.length > 0) {
-  const highest = allNewVersions.sort((a, b) => {
-    const [a1,a2,a3] = a.split('.').map(Number);
-    const [b1,b2,b3] = b.split('.').map(Number);
-    return (b1-a1) || (b2-a2) || (b3-a3);
-  })[0];
-  const oldRoot = rootPkg.version;
-  rootPkg.version = highest;
-  fs.writeFileSync('package.json', JSON.stringify(rootPkg, null, 2) + '\\n');
-  results.push('root: ' + oldRoot + ' → ' + highest);
-}
+  const packageDirs = { runtime: 'packages/runtime', transform: 'packages/transform', cli: 'packages/cli' };
+  const newVersions = {};
 
-console.log(JSON.stringify(results));
+  for (const [pkg, type] of Object.entries(bumps)) {
+    const pkgPath = packageDirs[pkg] + '/package.json';
+    if (!fs.existsSync(pkgPath)) continue;
+    const json = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    const oldVersion = json.version;
+    json.version = bumpVersion(oldVersion, type);
+    newVersions['@skflow/' + pkg] = json.version;
+    fs.writeFileSync(pkgPath, JSON.stringify(json, null, 2) + '\\n');
+    results.push(pkg + ': ' + oldVersion + ' -> ' + json.version + ' (' + type + ')');
+  }
+
+  const cliPkgPath = 'packages/cli/package.json';
+  if (fs.existsSync(cliPkgPath)) {
+    const cliJson = JSON.parse(fs.readFileSync(cliPkgPath, 'utf8'));
+    let updated = false;
+    for (const [name, ver] of Object.entries(newVersions)) {
+      if (cliJson.dependencies && cliJson.dependencies[name]) {
+        cliJson.dependencies[name] = 'workspace:*';
+        updated = true;
+      }
+    }
+    if (updated) fs.writeFileSync(cliPkgPath, JSON.stringify(cliJson, null, 2) + '\\n');
+  }
+
+  const rootPkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  const allNewVersions = Object.values(newVersions);
+  if (allNewVersions.length > 0) {
+    const highest = allNewVersions.sort((a, b) => {
+      const [a1,a2,a3] = a.split('.').map(Number);
+      const [b1,b2,b3] = b.split('.').map(Number);
+      return (b1-a1) || (b2-a2) || (b3-a3);
+    })[0];
+    const oldRoot = rootPkg.version;
+    rootPkg.version = highest;
+    fs.writeFileSync('package.json', JSON.stringify(rootPkg, null, 2) + '\\n');
+    results.push('root: ' + oldRoot + ' -> ' + highest);
+  }
+
+  console.log(JSON.stringify(results));
+});
 `;
         return {
           _sh: {
-            cmd: `node -e "${state.updateScript.replace(/"/g, '\\"').replace(/\n/g, " ")}" '${state.bumpDecision.replace(/'/g, "'\\''")}'`,
+            cmd: `node -e "${state.updateScript.replace(/"/g, '\\"').replace(/\n/g, " ")}"`,
+            stdin: state.bumpDecision,
           },
           next: { ...state, phase: 12 },
         };
