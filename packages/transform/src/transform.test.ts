@@ -286,3 +286,62 @@ export async function main() {
     expect(r.errors[0]).toContain("main");
   });
 });
+
+describe("transform — object literal keys are not rewritten", () => {
+  it("named keys in data object stay as-is", () => {
+    const source = `
+import { sh, ask, done } from "@skflow/runtime";
+export async function main() {
+  const stat = await sh("git diff --stat");
+  const nameStatus = await sh("git diff --name-status");
+  const generated = await ask({
+    prompt: "Generate PR title",
+    data: {
+      stat: stat.stdout,
+      nameStatus: nameStatus.stdout,
+    },
+  });
+  return done({ summary: generated });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+    // Object keys must NOT be prefixed with state.
+    expect(r.code).not.toContain("state.stat:");
+    expect(r.code).not.toContain("state.nameStatus:");
+    // Values should reference state
+    expect(r.code).toContain("state.stat.stdout");
+    expect(r.code).toContain("state.nameStatus.stdout");
+
+    // Run through to the ask yield and verify data keys
+    const r0 = r.step!({ phase: 0 });
+    const r1 = r.step!({ ...r0.next }, JSON.stringify({ stdout: "s1", stderr: "", code: 0 }));
+    const r2 = r.step!({ ...r1.next }, JSON.stringify({ stdout: "s2", stderr: "", code: 0 }));
+    expect(r2.yield).toBeDefined();
+    expect(r2.yield.data).toHaveProperty("stat", "s1");
+    expect(r2.yield.data).toHaveProperty("nameStatus", "s2");
+  });
+});
+
+describe("transform — top-level declarations are preserved", () => {
+  it("top-level constants and helper functions are emitted", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+
+const REPO = "my-org/my-repo";
+const TARGET = "main";
+
+function shQuote(s: string): string {
+  return "'" + s.replace(/'/g, "'\\\\''") + "'";
+}
+
+export async function main() {
+  const result = await sh("echo " + shQuote(REPO));
+  return done({ summary: REPO + " " + TARGET });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+    expect(r.code).toContain('const REPO = "my-org/my-repo"');
+    expect(r.code).toContain('const TARGET = "main"');
+    expect(r.code).toContain("function shQuote");
+  });
+});

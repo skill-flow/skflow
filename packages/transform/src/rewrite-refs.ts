@@ -30,6 +30,15 @@ export function rewriteVariableRefs(
       );
     }
 
+    // Regular property assignment { key: value } → only rewrite value, leave key as-is
+    if (ts.isPropertyAssignment(node)) {
+      const newInit = ts.visitNode(node.initializer, visitor) as ts.Expression;
+      if (newInit !== node.initializer) {
+        return ts.factory.updatePropertyAssignment(node, node.name, newInit);
+      }
+      return node;
+    }
+
     // Rewrite standalone identifier references to hoisted vars
     if (ts.isIdentifier(node) && hoistedNames.has(node.text)) {
       return ts.factory.createPropertyAccessExpression(
