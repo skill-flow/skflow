@@ -1,44 +1,44 @@
 # skflow
 
-Turn natural-language AI commands into deterministic, resumable scripts.
+Transform natural-language skills into deterministic, resumable scripts.
 
-skflow compiles TypeScript scripts that mix shell commands (`sh`) with LLM judgment calls (`ask`) into state machines. The compiled scripts yield to an AI agent (like Claude Code) when they need a decision, and resume exactly where they left off with the answer.
+skflow converts markdown skills (used by Claude Code, Cursor, Codex, etc.) into compiled TypeScript state machines. Shell commands run at native speed, and the script only yields back to the LLM when it actually needs a judgment call.
 
 ## Why
 
-AI coding agents use markdown "skills" or "commands" to define workflows — but every step runs through the LLM, even deterministic ones like `git diff` or `git commit`. This is slow, expensive, and unreliable.
+AI coding agents use markdown "skills" to define workflows — but every step runs through the LLM, even deterministic ones like `git diff` or `git commit`. This is slow, expensive, and unreliable.
 
-skflow extracts the deterministic parts into a compiled script and only yields back to the LLM for judgment calls:
+skflow transforms these skills into compiled scripts that only call the LLM for decisions:
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │  Before: markdown skill (every step through LLM)    │
 │                                                     │
 │  LLM: run git diff → LLM: read output → LLM: run   │
-│  git diff --stat → LLM: read output → LLM: decide   │
+│  git diff --stat → LLM: read output → LLM: decide  │
 │  commit type → LLM: write message → LLM: run commit │
 ├─────────────────────────────────────────────────────┤
-│  After: skflow script (LLM only where needed)        │
+│  After: skflow script (LLM only where needed)       │
 │                                                     │
 │  script: sh(git diff) → sh(git diff --stat) →       │
-│  yield ask("generate commit message") →              │
-│  LLM answers → script: sh(git commit) → done        │
+│  yield ask("generate commit message") →             │
+│  LLM answers → script: sh(git commit) → done       │
 └─────────────────────────────────────────────────────┘
 ```
 
 ## Quick Start
 
-Install the skill and transform any existing markdown skill into a skflow script:
+Install the transform skill, then point it at any existing markdown skill:
 
 ```bash
 # Install (works with Claude Code, Cursor, Codex, and other agents)
-npx skills add ChikaFujiwara/skflow
+npx skills add skill-flow/skflow
 
-# Transform an existing skill
+# Transform an existing markdown skill into a compiled script
 /skflow-transform .claude/commands/commit.md
 ```
 
-That's it. The transform skill will:
+That's it. The transform will:
 
 1. Read your original markdown skill
 2. Classify each step as `sh()` (deterministic), `ask()` (needs LLM), `askUser()` (needs human), or `done()` (terminal)
@@ -78,9 +78,9 @@ your-project/
 └── .claude/commands/commit.md     ← thin wrapper (yield protocol)
 ```
 
-## Writing Scripts Manually
+## Writing Scripts Directly
 
-For advanced use cases, you can write skflow scripts directly:
+For new workflows or advanced use cases, you can write skflow scripts from scratch:
 
 ```typescript
 // .skflow/skills/commit/script.ts
