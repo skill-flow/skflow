@@ -1,1 +1,2 @@
+sed -i 's/Co-Authored-By: Claude ([^)]*)/Co-Authored-By: Claude/' "$1"
 npx --no -- commitlint --edit "$1"
