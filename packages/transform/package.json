@@ -1,10 +1,10 @@
 {
   "name": "@skflow/transform",
   "version": "0.2.0",
-  "description": "AST transformer for skflow scripts",
+  "description": "Compile TypeScript scripts into deterministic state machines",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ChikaFujiwara/skflow.git",
+    "url": "https://github.com/skill-flow/skflow.git",
     "directory": "packages/transform"
   },
   "license": "MIT",

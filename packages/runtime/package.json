@@ -1,10 +1,10 @@
 {
   "name": "@skflow/runtime",
   "version": "0.2.0",
-  "description": "Runtime library for skflow scripts",
+  "description": "Runtime for executing compiled skflow scripts",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ChikaFujiwara/skflow.git",
+    "url": "https://github.com/skill-flow/skflow.git",
     "directory": "packages/runtime"
   },
   "license": "MIT",

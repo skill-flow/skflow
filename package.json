@@ -5,7 +5,7 @@
   "packageManager": "pnpm@10.15.0",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ChikaFujiwara/skflow.git"
+    "url": "https://github.com/skill-flow/skflow.git"
   },
   "license": "MIT",
   "scripts": {

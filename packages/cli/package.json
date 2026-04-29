@@ -1,10 +1,10 @@
 {
   "name": "@skflow/cli",
   "version": "0.2.0",
-  "description": "CLI entry point for skflow",
+  "description": "CLI for transforming skills into deterministic scripts",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ChikaFujiwara/skflow.git",
+    "url": "https://github.com/skill-flow/skflow.git",
     "directory": "packages/cli"
   },
   "license": "MIT",
