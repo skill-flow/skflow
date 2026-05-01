@@ -48,6 +48,8 @@ export interface ErrorMessage {
 
 export interface SessionState {
   phase: number;
+  _error?: unknown;
+  _completion?: { type: string; value?: unknown };
   [key: string]: unknown;
 }
 

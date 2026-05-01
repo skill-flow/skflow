@@ -45,6 +45,44 @@ export function containsYield(node: ts.Node): boolean {
   return found;
 }
 
+/** Detect `// @skflow sh-throws` pragma in top-level comments */
+export function detectShThrowsPragma(sourceFile: ts.SourceFile): boolean {
+  const fullText = sourceFile.getFullText();
+  // Scan top-level comments (before and between statements)
+  for (const stmt of sourceFile.statements) {
+    const leadingRanges = ts.getLeadingCommentRanges(fullText, stmt.getFullStart());
+    if (leadingRanges) {
+      for (const range of leadingRanges) {
+        const text = fullText.slice(range.pos, range.end);
+        if (text.includes("@skflow sh-throws")) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+/** Determine if a sh() call should throw on non-zero exit based on options and pragma */
+export function isThrowingSh(callExpr: ts.CallExpression, pragma: boolean): boolean {
+  // Check second argument for { throws: true/false }
+  const optsArg = callExpr.arguments[1];
+  if (optsArg && ts.isObjectLiteralExpression(optsArg)) {
+    for (const prop of optsArg.properties) {
+      if (
+        ts.isPropertyAssignment(prop) &&
+        ts.isIdentifier(prop.name) &&
+        prop.name.text === "throws"
+      ) {
+        if (prop.initializer.kind === ts.SyntaxKind.TrueKeyword) return true;
+        if (prop.initializer.kind === ts.SyntaxKind.FalseKeyword) return false;
+      }
+    }
+  }
+  // No explicit throws option — use pragma default
+  return pragma;
+}
+
 /** Check if a yield call is inside a nested function (not allowed) */
 export function findYieldInNestedFunction(node: ts.Node, inNested = false): string | null {
   if (inNested && isYieldCall(node)) {
@@ -59,23 +97,6 @@ export function findYieldInNestedFunction(node: ts.Node, inNested = false): stri
       ts.isArrowFunction(child) ||
       ts.isFunctionDeclaration(child);
     result = findYieldInNestedFunction(child, inNested || isNested);
-  });
-  return result;
-}
-
-/** Check if there's a try/catch wrapping a yield */
-export function findTryCatchAcrossYield(node: ts.Node): string | null {
-  if (ts.isTryStatement(node)) {
-    if (containsYield(node.tryBlock)) {
-      return "try/catch across yield points is not supported in MVP";
-    }
-  }
-
-  let result: string | null = null;
-  node.forEachChild((child) => {
-    if (result) return;
-    if (ts.isFunctionExpression(child) || ts.isArrowFunction(child)) return;
-    result = findTryCatchAcrossYield(child);
   });
   return result;
 }

@@ -39,6 +39,16 @@ export function rewriteVariableRefs(
       return node;
     }
 
+    // Skip catch clause variable declaration names (catch (e) → keep e as-is)
+    if (ts.isCatchClause(node)) {
+      // Visit only the block, not the variable declaration name
+      const newBlock = ts.visitNode(node.block, visitor) as ts.Block;
+      if (newBlock !== node.block) {
+        return ts.factory.updateCatchClause(node, node.variableDeclaration, newBlock);
+      }
+      return node;
+    }
+
     // Rewrite standalone identifier references to hoisted vars
     if (ts.isIdentifier(node) && hoistedNames.has(node.text)) {
       return ts.factory.createPropertyAccessExpression(

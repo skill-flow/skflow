@@ -101,6 +101,42 @@ function visitStatement(
     ];
   }
 
+  if (ts.isTryStatement(stmt)) {
+    const tryStmts = flattenBlock(stmt.tryBlock).flatMap((s) =>
+      visitStatement(s, hoisted, factory),
+    );
+    const newTryBlock = factory.updateBlock(stmt.tryBlock, tryStmts);
+
+    let newCatchClause = stmt.catchClause;
+    if (stmt.catchClause) {
+      // Hoist the catch parameter variable (e.g., `catch (e)` → e becomes state.e)
+      const catchParam = stmt.catchClause.variableDeclaration;
+      if (catchParam && ts.isIdentifier(catchParam.name)) {
+        hoisted.push({ name: catchParam.name.text });
+      }
+
+      const catchStmts = flattenBlock(stmt.catchClause.block).flatMap((s) =>
+        visitStatement(s, hoisted, factory),
+      );
+      const newCatchBlock = factory.updateBlock(stmt.catchClause.block, catchStmts);
+      newCatchClause = factory.updateCatchClause(
+        stmt.catchClause,
+        stmt.catchClause.variableDeclaration,
+        newCatchBlock,
+      );
+    }
+
+    let newFinallyBlock = stmt.finallyBlock;
+    if (stmt.finallyBlock) {
+      const finallyStmts = flattenBlock(stmt.finallyBlock).flatMap((s) =>
+        visitStatement(s, hoisted, factory),
+      );
+      newFinallyBlock = factory.updateBlock(stmt.finallyBlock, finallyStmts);
+    }
+
+    return [factory.updateTryStatement(stmt, newTryBlock, newCatchClause, newFinallyBlock)];
+  }
+
   if (ts.isBlock(stmt)) {
     const inner = stmt.statements.map((s) => visitStatement(s, hoisted, factory)).flat();
     return [factory.updateBlock(stmt, inner)];

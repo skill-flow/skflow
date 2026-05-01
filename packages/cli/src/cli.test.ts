@@ -71,11 +71,11 @@ export async function main() {
     const source = `
 import { ask } from "@skflow/runtime";
 export async function main() {
-  try { const x = await ask({ prompt: "test" }); } catch (e) {}
+  const fn = async () => { const x = await ask({ prompt: "test" }); };
 }`;
     const result = transform(source);
     expect(result.errors.length).toBeGreaterThan(0);
-    expect(result.errors[0]).toContain("try/catch");
+    expect(result.errors[0]).toContain("nested function");
   });
 
   it("runtime error produces ErrorMessage", () => {

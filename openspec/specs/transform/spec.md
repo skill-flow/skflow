@@ -46,6 +46,11 @@ The transformer SHALL recursively decompose statements into a linear sequence of
 - **WHEN** source contains a while loop with an if/else where both branches contain `await`
 - **THEN** compiled output correctly routes both branches back to the loop test after completion
 
+#### Scenario: try/catch/finally with yield
+
+- **WHEN** source contains `try { await sh("cmd", {throws:true}); } catch (e) { await ask({prompt:"fix?"}); } finally { await sh("cleanup"); }`
+- **THEN** compiled output has separate phase ranges for try body, catch body, and finally body, with a `_tries` dispatch table and `_completion` replay at finally end
+
 ### Requirement: State machine emission (emit)
 
 The transformer SHALL generate a `step(state, input)` function containing a `while(1) switch(state.phase)` dispatch loop. Each yield point SHALL be a separate case. When `sh()` is called with a second options argument, the transformer SHALL emit the options object's properties (`stdin`, `timeout`) as fields on the `_sh` yield object.
@@ -87,12 +92,7 @@ The transformer SHALL generate a `step(state, input)` function containing a `whi
 
 ### Requirement: Unsupported syntax detection
 
-The transformer SHALL detect and reject patterns not supported in MVP, with clear diagnostic messages.
-
-#### Scenario: try/catch wrapping a yield
-
-- **WHEN** source contains `try { await ask(...) } catch (e) { ... }`
-- **THEN** transformer emits error: "try/catch across yield points is not supported in MVP"
+The transformer SHALL detect and reject patterns not supported, with clear diagnostic messages.
 
 #### Scenario: Yield in nested function
 
@@ -102,7 +102,7 @@ The transformer SHALL detect and reject patterns not supported in MVP, with clea
 #### Scenario: Valid non-yield try/catch
 
 - **WHEN** source contains `try { JSON.parse(x) } catch (e) { ... }` with no yield inside
-- **THEN** transformer accepts it -- only try/catch that spans a yield point is rejected
+- **THEN** transformer accepts it and emits it as-is within the current phase
 
 ### Requirement: Source-to-source TypeScript transform
 

@@ -252,7 +252,7 @@ export async function main() {
 });
 
 describe("transform — unsupported patterns (5.15)", () => {
-  it("try/catch across yield produces error", () => {
+  it("try/catch across yield compiles successfully", () => {
     const source = `
 import { ask } from "@skflow/runtime";
 export async function main() {
@@ -263,8 +263,8 @@ export async function main() {
   }
 }`;
     const r = compileAndRun(source);
-    expect(r.errors).toHaveLength(1);
-    expect(r.errors[0]).toContain("try/catch");
+    expect(r.errors).toEqual([]);
+    expect(r.code).toContain("_tries");
   });
 
   it("yield in nested function produces error", () => {
@@ -343,5 +343,774 @@ export async function main() {
     expect(r.code).toContain('const REPO = "my-org/my-repo"');
     expect(r.code).toContain('const TARGET = "main"');
     expect(r.code).toContain("function shQuote");
+  });
+});
+
+// ─── Try/Catch/Finally Tests ─────────────────────────────────────────
+
+/** Helper: simulate step execution through the state machine with error injection */
+function runSteps(
+  step: (state: any, input?: string) => any,
+  inputs: Array<{ input?: string; throwError?: any }>,
+): any {
+  let state = { phase: 0 };
+  let result: any;
+  for (const { input, throwError } of inputs) {
+    result = step(state, input);
+    if (result.done) return result;
+    if (result.yield) return result;
+    if (result._sh) {
+      // For _sh results, runner would call again with sh result
+      state = result.next;
+    } else {
+      state = result.next;
+    }
+  }
+  return result;
+}
+
+describe("transform — try/catch with yields", () => {
+  it("try body with sh() — normal path skips catch", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+export async function main() {
+  let result = "init";
+  try {
+    const x = await sh("echo hello");
+    result = "try-done";
+  } catch (e) {
+    result = "caught";
+  }
+  return done({ summary: result });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+    expect(r.code).toContain("_tries");
+
+    // Normal path: sh succeeds, catch skipped
+    const r0 = r.step!({ phase: 0 });
+    expect(r0._sh).toBeDefined();
+    const r1 = r.step!(r0.next, JSON.stringify({ stdout: "hello", stderr: "", code: 0 }));
+    // r1 should eventually reach done
+    const state = r1.next ?? r1;
+    let result = r1;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    expect(result.done.summary).toBe("try-done");
+  });
+
+  it("try body with ask() — normal path skips catch", () => {
+    const source = `
+import { ask, done } from "@skflow/runtime";
+export async function main() {
+  let result = "init";
+  try {
+    const x = await ask({ prompt: "name?" });
+    result = x;
+  } catch (e) {
+    result = "caught";
+  }
+  return done({ summary: result });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    const r0 = r.step!({ phase: 0 });
+    expect(r0.yield).toBeDefined();
+    expect(r0.yield.prompt).toBe("name?");
+    const r1 = r.step!(r0.next, "Alice");
+    let result = r1;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    expect(result.done.summary).toBe("Alice");
+  });
+
+  it("multiple yields in try body", () => {
+    const source = `
+import { sh, ask, done } from "@skflow/runtime";
+export async function main() {
+  let out = "";
+  try {
+    const a = await sh("echo 1");
+    const b = await ask({ prompt: "next?" });
+    const c = await sh("echo 2");
+    out = a.stdout + "," + b + "," + c.stdout;
+  } catch (e) {
+    out = "caught";
+  }
+  return done({ summary: out });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    // sh → ask → sh → done
+    const r0 = r.step!({ phase: 0 });
+    expect(r0._sh).toBeDefined();
+    const r1 = r.step!(r0.next, JSON.stringify({ stdout: "one", stderr: "", code: 0 }));
+    expect(r1.yield).toBeDefined();
+    expect(r1.yield.prompt).toBe("next?");
+    const r2 = r.step!(r1.next, "two");
+    expect(r2._sh).toBeDefined();
+    const r3 = r.step!(r2.next, JSON.stringify({ stdout: "three", stderr: "", code: 0 }));
+    let result = r3;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    expect(result.done.summary).toBe("one,two,three");
+  });
+
+  it("sh throws in try body — caught by catch", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+// @skflow sh-throws
+export async function main() {
+  let result = "init";
+  try {
+    const x = await sh("failing-cmd");
+    result = "try-done";
+  } catch (e) {
+    result = "caught:" + e.code;
+  }
+  return done({ summary: result });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    const r0 = r.step!({ phase: 0 });
+    expect(r0._sh).toBeDefined();
+    // sh returns non-zero → throw → catch
+    const r1 = r.step!(r0.next, JSON.stringify({ stdout: "", stderr: "fail", code: 1 }));
+    let result = r1;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    expect(result.done.summary).toBe("caught:1");
+  });
+
+  it("yield inside catch body", () => {
+    const source = `
+import { sh, ask, done } from "@skflow/runtime";
+// @skflow sh-throws
+export async function main() {
+  let result = "init";
+  try {
+    const x = await sh("will-fail");
+    result = "try-done";
+  } catch (e) {
+    const msg = await ask({ prompt: "Error occurred: " + e.stderr });
+    result = "caught:" + msg;
+  }
+  return done({ summary: result });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    // sh fails → enters catch → ask → done
+    const r0 = r.step!({ phase: 0 });
+    expect(r0._sh).toBeDefined();
+    const r1 = r.step!(r0.next, JSON.stringify({ stdout: "", stderr: "oops", code: 1 }));
+    // Should now be in catch, asking
+    let result = r1;
+    while (result.next && !result.done && !result.yield) {
+      result = r.step!(result.next);
+    }
+    expect(result.yield).toBeDefined();
+    const r2 = r.step!(result.next, "acknowledged");
+    result = r2;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    expect(result.done.summary).toBe("caught:acknowledged");
+  });
+
+  it("code after try/catch block executes", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+export async function main() {
+  let result = "";
+  try {
+    const x = await sh("echo hello");
+    result = "try";
+  } catch (e) {
+    result = "catch";
+  }
+  const after = await sh("echo after");
+  result = result + "+" + after.stdout;
+  return done({ summary: result });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    const r0 = r.step!({ phase: 0 });
+    const r1 = r.step!(r0.next, JSON.stringify({ stdout: "hi", stderr: "", code: 0 }));
+    // Should continue after try/catch to second sh
+    let result = r1;
+    while (result.next && !result.done && !result._sh) {
+      result = r.step!(result.next);
+    }
+    expect(result._sh).toBeDefined();
+    const r2 = r.step!(result.next, JSON.stringify({ stdout: "post", stderr: "", code: 0 }));
+    result = r2;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    expect(result.done.summary).toBe("try+post");
+  });
+});
+
+describe("transform — try/finally with yields", () => {
+  it("try-finally normal path — finally executes", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+export async function main() {
+  let result = "";
+  try {
+    const x = await sh("echo hello");
+    result = "try";
+  } finally {
+    result = result + "+finally";
+  }
+  return done({ summary: result });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    const r0 = r.step!({ phase: 0 });
+    expect(r0._sh).toBeDefined();
+    const r1 = r.step!(r0.next, JSON.stringify({ stdout: "hi", stderr: "", code: 0 }));
+    let result = r1;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    expect(result.done.summary).toBe("try+finally");
+  });
+
+  it("try-finally with error — finally executes then error propagates", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+// @skflow sh-throws
+export async function main() {
+  let log = "";
+  try {
+    const x = await sh("will-fail");
+    log = "try-done";
+  } finally {
+    log = log + "+finally";
+  }
+  return done({ summary: log });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    const r0 = r.step!({ phase: 0 });
+    expect(r0._sh).toBeDefined();
+    // sh fails → throw → finally → re-throw (all within one step call)
+    let threw = false;
+    try {
+      const r1 = r.step!(r0.next, JSON.stringify({ stdout: "", stderr: "err", code: 1 }));
+      let result = r1;
+      while (result.next && !result.done) {
+        result = r.step!(result.next);
+      }
+    } catch (e: any) {
+      threw = true;
+      expect(e.code).toBe(1);
+    }
+    expect(threw).toBe(true);
+  });
+
+  it("yield inside finally body", () => {
+    const source = `
+import { sh, ask, done } from "@skflow/runtime";
+export async function main() {
+  let result = "";
+  try {
+    const x = await sh("echo hello");
+    result = "try";
+  } finally {
+    const cleanup = await sh("echo cleanup");
+    result = result + "+" + cleanup.stdout;
+  }
+  return done({ summary: result });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    const r0 = r.step!({ phase: 0 });
+    expect(r0._sh).toBeDefined();
+    const r1 = r.step!(r0.next, JSON.stringify({ stdout: "hi", stderr: "", code: 0 }));
+    // Should proceed into finally which has an sh()
+    let result = r1;
+    while (result.next && !result.done && !result._sh) {
+      result = r.step!(result.next);
+    }
+    expect(result._sh).toBeDefined();
+    expect(result._sh.cmd).toBe("echo cleanup");
+    const r2 = r.step!(result.next, JSON.stringify({ stdout: "cleaned", stderr: "", code: 0 }));
+    result = r2;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    expect(result.done.summary).toBe("try+cleaned");
+  });
+
+  it("return done() inside try routes through finally", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+export async function main() {
+  let log = "";
+  try {
+    const x = await sh("echo hello");
+    log = "returning";
+    return done({ summary: log });
+  } finally {
+    log = log + "+finally";
+  }
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    const r0 = r.step!({ phase: 0 });
+    expect(r0._sh).toBeDefined();
+    const r1 = r.step!(r0.next, JSON.stringify({ stdout: "hi", stderr: "", code: 0 }));
+    let result = r1;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    // The return goes through finally, which sets log, then the original done is returned
+    expect(result.done).toBeDefined();
+    expect(result.done.summary).toBe("returning");
+  });
+});
+
+describe("transform — try/catch/finally combined", () => {
+  it("normal path: try → finally (catch skipped)", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+export async function main() {
+  let log = "";
+  try {
+    const x = await sh("echo ok");
+    log = "try";
+  } catch (e) {
+    log = "catch";
+  } finally {
+    log = log + "+finally";
+  }
+  return done({ summary: log });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    const r0 = r.step!({ phase: 0 });
+    const r1 = r.step!(r0.next, JSON.stringify({ stdout: "ok", stderr: "", code: 0 }));
+    let result = r1;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    expect(result.done.summary).toBe("try+finally");
+  });
+
+  it("error path: try → catch → finally", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+// @skflow sh-throws
+export async function main() {
+  let log = "";
+  try {
+    const x = await sh("bad-cmd");
+    log = "try";
+  } catch (e) {
+    log = "catch:" + e.code;
+  } finally {
+    log = log + "+finally";
+  }
+  return done({ summary: log });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    const r0 = r.step!({ phase: 0 });
+    const r1 = r.step!(r0.next, JSON.stringify({ stdout: "", stderr: "err", code: 2 }));
+    let result = r1;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    expect(result.done.summary).toBe("catch:2+finally");
+  });
+
+  it("yield in catch and finally bodies", () => {
+    const source = `
+import { sh, ask, done } from "@skflow/runtime";
+// @skflow sh-throws
+export async function main() {
+  let log = "";
+  try {
+    const x = await sh("bad-cmd");
+    log = "try";
+  } catch (e) {
+    const msg = await ask({ prompt: "handle error" });
+    log = "catch:" + msg;
+  } finally {
+    const cleanup = await sh("echo cleanup");
+    log = log + "+finally:" + cleanup.stdout;
+  }
+  return done({ summary: log });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    // sh fails → catch → ask → finally → sh → done
+    const r0 = r.step!({ phase: 0 });
+    expect(r0._sh).toBeDefined();
+    const r1 = r.step!(r0.next, JSON.stringify({ stdout: "", stderr: "err", code: 1 }));
+    // Should land in catch which does ask
+    let result = r1;
+    while (result.next && !result.done && !result.yield) {
+      result = r.step!(result.next);
+    }
+    expect(result.yield).toBeDefined();
+    expect(result.yield.prompt).toBe("handle error");
+    const r2 = r.step!(result.next, "handled");
+    // Now should be in finally which does sh
+    result = r2;
+    while (result.next && !result.done && !result._sh) {
+      result = r.step!(result.next);
+    }
+    expect(result._sh).toBeDefined();
+    expect(result._sh.cmd).toBe("echo cleanup");
+    const r3 = r.step!(result.next, JSON.stringify({ stdout: "done", stderr: "", code: 0 }));
+    result = r3;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    expect(result.done.summary).toBe("catch:handled+finally:done");
+  });
+
+  it("error in catch body routes to finally then re-throws", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+// @skflow sh-throws
+export async function main() {
+  let log = "";
+  try {
+    const x = await sh("fail1");
+    log = "try";
+  } catch (e) {
+    const y = await sh("fail2");
+    log = "catch";
+  } finally {
+    log = log + "+finally";
+  }
+  return done({ summary: log });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    // first sh fails → catch → second sh fails in catch → finally → re-throw
+    const r0 = r.step!({ phase: 0 });
+    const r1 = r.step!(r0.next, JSON.stringify({ stdout: "", stderr: "e1", code: 1 }));
+    // Now in catch, which calls sh
+    let result = r1;
+    while (result.next && !result.done && !result._sh) {
+      result = r.step!(result.next);
+    }
+    expect(result._sh).toBeDefined();
+    // second sh also fails → throw in catch → routes to finally → re-throw
+    let threw = false;
+    try {
+      const r2 = r.step!(result.next, JSON.stringify({ stdout: "", stderr: "e2", code: 3 }));
+      result = r2;
+      while (result.next && !result.done) {
+        result = r.step!(result.next);
+      }
+    } catch (e: any) {
+      threw = true;
+      expect(e.code).toBe(3);
+    }
+    expect(threw).toBe(true);
+  });
+});
+
+describe("transform — nested try and try in loops", () => {
+  it("nested try/catch", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+// @skflow sh-throws
+export async function main() {
+  let log = "";
+  try {
+    try {
+      const x = await sh("inner-fail");
+      log = "inner-try";
+    } catch (e) {
+      log = "inner-catch:" + e.code;
+    }
+    const y = await sh("echo outer");
+    log = log + "+outer:" + y.stdout;
+  } catch (e) {
+    log = "outer-catch";
+  }
+  return done({ summary: log });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    // inner sh fails → inner catch → outer sh succeeds → done
+    const r0 = r.step!({ phase: 0 });
+    expect(r0._sh).toBeDefined();
+    const r1 = r.step!(r0.next, JSON.stringify({ stdout: "", stderr: "e", code: 5 }));
+    // Inner catch handles it, then outer sh runs
+    let result = r1;
+    while (result.next && !result.done && !result._sh) {
+      result = r.step!(result.next);
+    }
+    expect(result._sh).toBeDefined();
+    expect(result._sh.cmd).toBe("echo outer");
+    const r2 = r.step!(result.next, JSON.stringify({ stdout: "ok", stderr: "", code: 0 }));
+    result = r2;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    expect(result.done.summary).toBe("inner-catch:5+outer:ok");
+  });
+
+  it("nested try — inner unhandled propagates to outer catch", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+// @skflow sh-throws
+export async function main() {
+  let log = "";
+  try {
+    try {
+      const x = await sh("inner-fail");
+      log = "inner-try";
+    } finally {
+      log = "inner-finally";
+    }
+    log = log + "+after-inner";
+  } catch (e) {
+    log = log + "+outer-catch:" + e.code;
+  }
+  return done({ summary: log });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    const r0 = r.step!({ phase: 0 });
+    const r1 = r.step!(r0.next, JSON.stringify({ stdout: "", stderr: "e", code: 7 }));
+    let result = r1;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    expect(result.done.summary).toBe("inner-finally+outer-catch:7");
+  });
+
+  it("try/catch inside while loop", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+// @skflow sh-throws
+export async function main() {
+  let log = "";
+  let i = 0;
+  while (i < 2) {
+    try {
+      const x = await sh("cmd-" + i);
+      log = log + "ok" + i;
+    } catch (e) {
+      log = log + "err" + i;
+    }
+    i = i + 1;
+  }
+  return done({ summary: log });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    // iteration 0: sh succeeds
+    const r0 = r.step!({ phase: 0 });
+    let result = r0;
+    // Find the first sh
+    while (result.next && !result.done && !result._sh) {
+      result = r.step!(result.next);
+    }
+    expect(result._sh).toBeDefined();
+    const r1 = r.step!(result.next, JSON.stringify({ stdout: "a", stderr: "", code: 0 }));
+    result = r1;
+    // Loop back, find second sh
+    while (result.next && !result.done && !result._sh) {
+      result = r.step!(result.next);
+    }
+    expect(result._sh).toBeDefined();
+    // iteration 1: sh fails
+    const r2 = r.step!(result.next, JSON.stringify({ stdout: "", stderr: "x", code: 1 }));
+    result = r2;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    expect(result.done.summary).toBe("ok0err1");
+  });
+
+  it("try with both yield and non-yield statements in try body", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+export async function main() {
+  let x = 0;
+  try {
+    x = 1;
+    const r = await sh("echo test");
+    x = 2;
+  } catch (e) {
+    x = -1;
+  }
+  return done({ summary: String(x) });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    const r0 = r.step!({ phase: 0 });
+    let result = r0;
+    while (result.next && !result.done && !result._sh) {
+      result = r.step!(result.next);
+    }
+    expect(result._sh).toBeDefined();
+    const r1 = r.step!(result.next, JSON.stringify({ stdout: "test", stderr: "", code: 0 }));
+    result = r1;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    expect(result.done.summary).toBe("2");
+  });
+});
+
+describe("transform — sh-throws pragma", () => {
+  it("sh-throws pragma makes all sh() throw on non-zero", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+// @skflow sh-throws
+export async function main() {
+  let result = "init";
+  try {
+    const x = await sh("will-fail");
+    result = "ok";
+  } catch (e) {
+    result = "caught:" + e.stderr;
+  }
+  return done({ summary: result });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    const r0 = r.step!({ phase: 0 });
+    const r1 = r.step!(r0.next, JSON.stringify({ stdout: "", stderr: "bad", code: 1 }));
+    let result = r1;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    expect(result.done.summary).toBe("caught:bad");
+  });
+
+  it("per-call { throws: true } overrides no-pragma default", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+export async function main() {
+  let result = "init";
+  try {
+    const x = await sh("will-fail", { throws: true });
+    result = "ok";
+  } catch (e) {
+    result = "caught:" + e.code;
+  }
+  return done({ summary: result });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    const r0 = r.step!({ phase: 0 });
+    const r1 = r.step!(r0.next, JSON.stringify({ stdout: "", stderr: "err", code: 42 }));
+    let result = r1;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    expect(result.done.summary).toBe("caught:42");
+  });
+
+  it("per-call { throws: false } overrides pragma", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+// @skflow sh-throws
+export async function main() {
+  const x = await sh("will-fail", { throws: false });
+  return done({ summary: "code:" + x.code });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+
+    const r0 = r.step!({ phase: 0 });
+    expect(r0._sh).toBeDefined();
+    const r1 = r.step!(r0.next, JSON.stringify({ stdout: "", stderr: "err", code: 3 }));
+    let result = r1;
+    while (result.next && !result.done) {
+      result = r.step!(result.next);
+    }
+    // Should NOT throw — just returns the result with code
+    expect(result.done.summary).toBe("code:3");
+  });
+});
+
+describe("transform — try/catch compilation structure", () => {
+  it("generates _tries dispatch table", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+export async function main() {
+  try {
+    const x = await sh("echo test");
+  } catch (e) {
+    console.log(e);
+  }
+  return done({ summary: "ok" });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+    expect(r.code).toContain("const _tries");
+    expect(r.code).toContain("_loop:");
+  });
+
+  it("generates labeled _loop with catch dispatch", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+// @skflow sh-throws
+export async function main() {
+  try {
+    const x = await sh("cmd");
+  } catch (e) {
+    const y = await sh("echo caught");
+  }
+  return done({ summary: "done" });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+    expect(r.code).toContain("_loop:");
+    expect(r.code).toContain("catch (_e)");
+    expect(r.code).toContain("continue _loop");
+  });
+
+  it("try-finally generates _completion assignments", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+export async function main() {
+  try {
+    const x = await sh("cmd");
+  } finally {
+    console.log("cleanup");
+  }
+  return done({ summary: "done" });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+    expect(r.code).toContain("_completion");
+    expect(r.code).toContain('"normal"');
   });
 });

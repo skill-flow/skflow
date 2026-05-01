@@ -1,7 +1,7 @@
 import ts from "typescript";
 import { hoistVariables } from "./hoist.js";
 import { explodeBody, generateStepFunction } from "./emit.js";
-import { findYieldInNestedFunction, findTryCatchAcrossYield } from "./detect.js";
+import { findYieldInNestedFunction, detectShThrowsPragma } from "./detect.js";
 import { rewriteVariableRefs } from "./rewrite-refs.js";
 
 export interface TransformResult {
@@ -28,10 +28,6 @@ export function transform(source: string, filename: string = "script.ts"): Trans
   if (nestedYield) {
     errors.push(nestedYield);
   }
-  const tryCatchYield = findTryCatchAcrossYield(mainFn.body);
-  if (tryCatchYield) {
-    errors.push(tryCatchYield);
-  }
   if (errors.length > 0) {
     return { code: "", errors };
   }
@@ -49,10 +45,13 @@ export function transform(source: string, filename: string = "script.ts"): Trans
   const hoistedNames = new Set(hoisted.map((h) => h.name));
   const rewritten = rewriteVariableRefs(statements, hoistedNames);
 
+  // Detect sh-throws pragma
+  const shThrowsPragma = detectShThrowsPragma(sourceFile);
+
   // Step 2: Explode into state machine cases
   // We need a source file that contains the hoisted statements for line numbers
   // Since the hoisted statements reference the original positions, use the original sourceFile
-  const exploded = explodeBody(rewritten, sourceFile);
+  const exploded = explodeBody(rewritten, sourceFile, shThrowsPragma);
 
   // Step 3: Generate step function
   const stepCode = generateStepFunction(

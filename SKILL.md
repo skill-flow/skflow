@@ -62,7 +62,7 @@ export async function main() {
    - `await sh("command", { timeout: 30000 })` — set timeout in milliseconds
 5. **`sh()` returns `{ stdout, stderr, code }`.** Use `result.code` to check exit status, `result.stdout` for output.
 6. **The function MUST return `done()`.** Every code path must end with `return done({ summary: "..." })` or `return done({ summary: "...", data: { ... } })`.
-7. **No try/catch around `sh()` or `ask()` calls.** The skflow compiler does not support try/catch around yield points.
+7. **try/catch/finally is supported.** Use try/catch around `sh()` or `ask()` calls to handle errors. To make `sh()` throw on non-zero exit, use `sh("cmd", { throws: true })` per-call or add `// @skflow sh-throws` at the top of the script to make all `sh()` calls throw by default. The error object is `{ code, stdout, stderr, cmd }`.
 
 ## Step 3: Move the Original and Generate Thin Wrapper
 
@@ -98,7 +98,7 @@ This reads `.skflow/skills/<name>/script.ts` and produces `.skflow/skills/<name>
 
 If compilation fails, read the error messages and fix `script.ts` accordingly. Common issues:
 
-- `try/catch` around `sh()` or `ask()` calls → remove try/catch, use `result.code` to check errors
+- Yield calls (`sh()`, `ask()`, `askUser()`) inside nested functions (callbacks, arrow functions) → move them to the top level of `main()`
 - Missing `return done()` on a code path → add the missing return
 
 ## Complete Example
