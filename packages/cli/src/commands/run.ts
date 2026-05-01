@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import * as path from "node:path";
 import { pathToFileURL } from "node:url";
 import { run, RuntimeError } from "@skflow/runtime";
-import type { StepFunction } from "@skflow/runtime";
+import type { StepFunction, SourceMapEntry } from "@skflow/runtime";
 
 function findCompiledScript(name: string): string | null {
   let dir = process.cwd();
@@ -37,9 +37,11 @@ export async function runCommand(args: string[]): Promise<void> {
   }
 
   let step: StepFunction;
+  let sourceMap: SourceMapEntry[] | undefined;
   try {
     const mod = await import(pathToFileURL(scriptPath).href);
     step = mod.step;
+    sourceMap = mod.__sourceMap;
     if (typeof step !== "function") {
       console.error(`Script does not export a 'step' function: ${scriptPath}`);
       process.exit(1);
@@ -50,7 +52,7 @@ export async function runCommand(args: string[]): Promise<void> {
   }
 
   try {
-    const result = run({ scriptName: name, scriptPath, step });
+    const result = run({ scriptName: name, scriptPath, step, sourceMap });
     process.stdout.write(JSON.stringify(result) + "\n");
   } catch (err) {
     if (err instanceof RuntimeError) {

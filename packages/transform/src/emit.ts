@@ -25,9 +25,17 @@ interface TryEntry {
   afterPhase: number;
 }
 
+export interface SourceMapEntry {
+  phase: number;
+  line: number;
+  source: string | null;
+  type: string;
+}
+
 let nextPhase = 0;
 let cases: Case[] = [];
 let tryEntries: TryEntry[] = [];
+let sourceMapEntries: SourceMapEntry[] = [];
 let shThrowsPragma = false;
 
 // Stack of active try-finally contexts for break/continue routing
@@ -139,12 +147,46 @@ function makeDoneReturn(callExpr: ts.CallExpression): ts.ObjectLiteralExpression
 
 function getLineNumber(node: ts.Node, sourceFile: ts.SourceFile): number {
   try {
+    // Try getStart first (works for original nodes)
     const pos = node.getStart(sourceFile);
-    if (pos < 0) return -1;
-    return sourceFile.getLineAndCharacterOfPosition(pos).line + 1;
+    if (pos >= 0) {
+      return sourceFile.getLineAndCharacterOfPosition(pos).line + 1;
+    }
   } catch {
-    return -1;
+    // Fall through to pos-based lookup
   }
+  // For rewritten nodes, use the raw pos from text range
+  try {
+    const pos = node.pos;
+    if (pos >= 0) {
+      return sourceFile.getLineAndCharacterOfPosition(pos).line + 1;
+    }
+  } catch {
+    // ignore
+  }
+  return -1;
+}
+
+function getSourceLineText(lineNumber: number, sourceFile: ts.SourceFile): string | null {
+  if (lineNumber < 1) return null;
+  const text = sourceFile.getFullText();
+  const lines = text.split("\n");
+  if (lineNumber > lines.length) return null;
+  return lines[lineNumber - 1].trim();
+}
+
+function recordSourceMap(
+  phase: number,
+  line: number,
+  sourceFile: ts.SourceFile,
+  type: string,
+): void {
+  sourceMapEntries.push({
+    phase,
+    line,
+    source: getSourceLineText(line, sourceFile),
+    type,
+  });
 }
 
 /** Emit jump: state.phase = target; continue; */
@@ -197,17 +239,18 @@ export function explodeBody(
   stmts: ts.Statement[],
   sourceFile: ts.SourceFile,
   pragma: boolean = false,
-): { cases: Case[]; tryEntries: TryEntry[] } {
+): { cases: Case[]; tryEntries: TryEntry[]; sourceMap: SourceMapEntry[] } {
   nextPhase = 0;
   cases = [];
   tryEntries = [];
+  sourceMapEntries = [];
   shThrowsPragma = pragma;
   activeTryFinallyStack = [];
   newPhase();
 
   explodeStatements(stmts, sourceFile);
 
-  return { cases, tryEntries };
+  return { cases, tryEntries, sourceMap: sourceMapEntries };
 }
 
 function explodeStatements(stmts: ts.Statement[], sourceFile: ts.SourceFile): void {
@@ -311,6 +354,8 @@ function explodeYieldExpression(
       const fnName = getYieldFnName(rhs);
       const call = rhs.expression as ts.CallExpression;
       const nextP = newPhase(`/* L${line} resume after ${fnName}() */`);
+      recordSourceMap(nextP - 1, line, sourceFile, fnName);
+      recordSourceMap(nextP, line, sourceFile, fnName + "-resume");
 
       if (fnName === "sh") {
         const optsArg = call.arguments[1] ? cloneExpr(call.arguments[1]) : undefined;
@@ -364,6 +409,8 @@ function explodeYieldExpression(
     const fnName = getYieldFnName(expr);
     const call = expr.expression as ts.CallExpression;
     const nextP = newPhase(`/* L${line} resume after ${fnName}() */`);
+    recordSourceMap(nextP - 1, line, sourceFile, fnName);
+    recordSourceMap(nextP, line, sourceFile, fnName + "-resume");
 
     if (fnName === "sh") {
       const optsArg = call.arguments[1] ? cloneExpr(call.arguments[1]) : undefined;
@@ -990,7 +1037,7 @@ function endsWithReturnOrContinue(stmts: ts.Statement[]): boolean {
 
 /** Generate the step function source from exploded cases */
 export function generateStepFunction(
-  exploded: { cases: Case[]; tryEntries: TryEntry[] },
+  exploded: { cases: Case[]; tryEntries: TryEntry[]; sourceMap: SourceMapEntry[] },
   _hoistedNames: string[],
 ): string {
   const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
@@ -1090,7 +1137,15 @@ export function generateStepFunction(
     f.createBlock(bodyStatements),
   );
 
-  return printer.printNode(ts.EmitHint.Unspecified, stepFn, src);
+  const stepCode = printer.printNode(ts.EmitHint.Unspecified, stepFn, src);
+
+  // Emit __sourceMap export
+  const sourceMapArrayStr = JSON.stringify(
+    exploded.sourceMap.map((e) => [e.phase, e.line, e.source, e.type]),
+  );
+  const sourceMapExport = `export const __sourceMap = ${sourceMapArrayStr};\n`;
+
+  return stepCode + "\n" + sourceMapExport;
 }
 
 /** Build the catch dispatch logic for the generated catch block */

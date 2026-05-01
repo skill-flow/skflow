@@ -2,7 +2,7 @@ import * as fs from "node:fs";
 import { pathToFileURL } from "node:url";
 import { resume, RuntimeError } from "@skflow/runtime";
 import { loadMeta } from "@skflow/runtime/session";
-import type { StepFunction } from "@skflow/runtime";
+import type { StepFunction, SourceMapEntry } from "@skflow/runtime";
 
 export async function resumeCommand(args: string[]): Promise<void> {
   if (args.includes("--help") || args.includes("-h")) {
@@ -58,9 +58,11 @@ export async function resumeCommand(args: string[]): Promise<void> {
   }
 
   let step: StepFunction;
+  let sourceMap: SourceMapEntry[] | undefined;
   try {
     const mod = await import(pathToFileURL(meta.scriptPath).href);
     step = mod.step;
+    sourceMap = mod.__sourceMap;
     if (typeof step !== "function") {
       console.error(`Script does not export a 'step' function: ${meta.scriptPath}`);
       process.exit(1);
@@ -71,7 +73,7 @@ export async function resumeCommand(args: string[]): Promise<void> {
   }
 
   try {
-    const result = resume({ sessionId, answer: input, step });
+    const result = resume({ sessionId, answer: input, step, sourceMap });
     process.stdout.write(JSON.stringify(result) + "\n");
   } catch (err) {
     if (err instanceof RuntimeError) {

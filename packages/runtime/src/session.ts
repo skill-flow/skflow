@@ -38,6 +38,11 @@ export function loadMeta(sessionId: string): SessionMeta {
   return JSON.parse(readFileSync(path, "utf-8"));
 }
 
+export function saveMeta(sessionId: string, meta: SessionMeta): void {
+  const path = join(getSessionDir(sessionId), "meta.json");
+  writeFileSync(path, JSON.stringify(meta, null, 2));
+}
+
 export function loadState(sessionId: string): SessionState {
   const path = join(getSessionDir(sessionId), "state.json");
   return JSON.parse(readFileSync(path, "utf-8"));

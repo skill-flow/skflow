@@ -145,3 +145,191 @@ describe("resume", () => {
     expect(() => resume({ sessionId: id, answer: "x", step })).toThrow("expired");
   });
 });
+
+describe("sh-error recovery", () => {
+  it("unhandled sh error yields sh-error instead of crashing", () => {
+    // Simulates: sh-throws is active, sh returns non-zero, no try/catch
+    const step: StepFunction = (state: SessionState, input?: string) => {
+      switch (state.phase) {
+        case 0:
+          return { _sh: { cmd: "git push" }, next: { phase: 1 } };
+        case 1: {
+          const result = JSON.parse(input!);
+          if (result.code !== 0) {
+            result.cmd = "git push";
+            throw result;
+          }
+          return { done: { summary: "pushed" } };
+        }
+        default:
+          throw new Error("unexpected phase");
+      }
+    };
+
+    // run will execute sh("git push") which fails
+    // Since we can't mock execSh easily, let's use a command that always fails
+    const result = run({ scriptName: "test", scriptPath: "/test.ts", step });
+
+    // The sh call to "git push" will likely fail (no git repo) or succeed
+    // Let's test with a command guaranteed to fail
+    const stepFail: StepFunction = (state: SessionState, input?: string) => {
+      switch (state.phase) {
+        case 0:
+          return { _sh: { cmd: "exit 1" }, next: { phase: 1 } };
+        case 1: {
+          const r = JSON.parse(input!);
+          if (r.code !== 0) {
+            r.cmd = "exit 1";
+            throw r;
+          }
+          return { done: { summary: "ok" } };
+        }
+        default:
+          throw new Error("unexpected phase");
+      }
+    };
+
+    const result2 = run({ scriptName: "test", scriptPath: "/test.ts", step: stepFail });
+    expect("yield" in result2).toBe(true);
+    if ("yield" in result2) {
+      expect(result2.yield.type).toBe("sh-error");
+      expect(result2.yield.cmd).toBe("exit 1");
+      expect(result2.yield.result).toBeDefined();
+      expect(result2.yield.result!.code).not.toBe(0);
+      expect(result2.session).toBeTruthy();
+      cleanupIds.push(result2.session);
+    }
+  });
+
+  it("resume with new command continues execution on success", () => {
+    const callCount = 0;
+    const step: StepFunction = (state: SessionState, input?: string) => {
+      switch (state.phase) {
+        case 0:
+          return { _sh: { cmd: "exit 1" }, next: { phase: 1 } };
+        case 1: {
+          const r = JSON.parse(input!);
+          if (r.code !== 0) {
+            r.cmd = "exit 1";
+            throw r;
+          }
+          return { done: { summary: "recovered: " + r.stdout.trim() } };
+        }
+        default:
+          throw new Error("unexpected phase");
+      }
+    };
+
+    // First run: sh fails → yields sh-error
+    const result1 = run({ scriptName: "test", scriptPath: "/test.ts", step });
+    expect("yield" in result1).toBe(true);
+    if ("yield" in result1) {
+      expect(result1.yield.type).toBe("sh-error");
+      cleanupIds.push(result1.session);
+
+      // Resume with a command that succeeds
+      const result2 = resume({
+        sessionId: result1.session,
+        answer: "echo fixed",
+        step,
+      });
+      expect("done" in result2).toBe(true);
+      if ("done" in result2) {
+        expect(result2.done.summary).toBe("recovered: fixed");
+      }
+    }
+  });
+
+  it("retry that also fails yields sh-error again", () => {
+    const step: StepFunction = (state: SessionState, input?: string) => {
+      switch (state.phase) {
+        case 0:
+          return { _sh: { cmd: "exit 1" }, next: { phase: 1 } };
+        case 1: {
+          const r = JSON.parse(input!);
+          if (r.code !== 0) {
+            r.cmd = "exit 1";
+            throw r;
+          }
+          return { done: { summary: "ok" } };
+        }
+        default:
+          throw new Error("unexpected phase");
+      }
+    };
+
+    // First run: fails
+    const result1 = run({ scriptName: "test", scriptPath: "/test.ts", step });
+    expect("yield" in result1).toBe(true);
+    if ("yield" in result1) {
+      expect(result1.yield.type).toBe("sh-error");
+      cleanupIds.push(result1.session);
+
+      // Resume with another failing command
+      const result2 = resume({
+        sessionId: result1.session,
+        answer: "exit 2",
+        step,
+      });
+      // Should yield sh-error again
+      expect("yield" in result2).toBe(true);
+      if ("yield" in result2) {
+        expect(result2.yield.type).toBe("sh-error");
+      }
+    }
+  });
+
+  it("source map context is included in sh-error yield", () => {
+    const step: StepFunction = (state: SessionState, input?: string) => {
+      switch (state.phase) {
+        case 0:
+          return { _sh: { cmd: "exit 1" }, next: { phase: 1 } };
+        case 1: {
+          const r = JSON.parse(input!);
+          if (r.code !== 0) {
+            r.cmd = "exit 1";
+            throw r;
+          }
+          return { done: { summary: "ok" } };
+        }
+        default:
+          throw new Error("unexpected phase");
+      }
+    };
+
+    const sourceMap: [number, number, string | null, string][] = [
+      [0, 4, 'const x = await sh("exit 1")', "sh"],
+      [1, 4, null, "sh-resume"],
+    ];
+
+    const result = run({
+      scriptName: "test",
+      scriptPath: "/test.ts",
+      step,
+      sourceMap,
+    });
+    expect("yield" in result).toBe(true);
+    if ("yield" in result) {
+      expect(result.yield.type).toBe("sh-error");
+      expect(result.yield.context).toBeDefined();
+      expect(result.yield.context!.line).toBe(4);
+      expect(result.yield.context!.source).toBeNull(); // phase 1 is sh-resume
+      cleanupIds.push(result.session);
+    }
+  });
+
+  it("non-sh errors still produce RuntimeError (not sh-error yield)", () => {
+    const step: StepFunction = (state: SessionState, _input?: string) => {
+      switch (state.phase) {
+        case 0:
+          return { _sh: { cmd: "echo hello" }, next: { phase: 1 } };
+        case 1:
+          throw new TypeError("Cannot read property 'foo' of undefined");
+        default:
+          throw new Error("unexpected phase");
+      }
+    };
+
+    expect(() => run({ scriptName: "test", scriptPath: "/test.ts", step })).toThrow(RuntimeError);
+  });
+});

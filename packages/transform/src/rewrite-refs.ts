@@ -60,5 +60,12 @@ export function rewriteVariableRefs(
     return ts.visitEachChild(node, visitor, undefined);
   };
 
-  return stmts.map((stmt) => ts.visitNode(stmt, visitor) as ts.Statement);
+  return stmts.map((stmt) => {
+    const result = ts.visitNode(stmt, visitor) as ts.Statement;
+    // Preserve original text range so line number lookup still works
+    if (result !== stmt) {
+      ts.setTextRange(result, stmt);
+    }
+    return result;
+  });
 }

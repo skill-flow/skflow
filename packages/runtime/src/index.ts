@@ -13,4 +13,5 @@ export type {
   SessionMeta,
   StepFunction,
   StepResult,
+  SourceMapEntry,
 } from "./protocol.js";

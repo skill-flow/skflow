@@ -176,15 +176,16 @@ function hoistVariableStatement(
       // Replace: const x = expr  →  state.x = expr
       // Deep clone to detach all nested nodes from original source positions
       const init = deepCloneNode(decl.initializer);
-      result.push(
-        factory.createExpressionStatement(
-          factory.createBinaryExpression(
-            factory.createPropertyAccessExpression(factory.createIdentifier("state"), name),
-            ts.SyntaxKind.EqualsToken,
-            init,
-          ),
+      const exprStmt = factory.createExpressionStatement(
+        factory.createBinaryExpression(
+          factory.createPropertyAccessExpression(factory.createIdentifier("state"), name),
+          ts.SyntaxKind.EqualsToken,
+          init,
         ),
       );
+      // Preserve original statement position for source map lookups
+      ts.setTextRange(exprStmt, stmt);
+      result.push(exprStmt);
     }
   }
 

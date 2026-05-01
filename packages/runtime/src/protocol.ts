@@ -15,10 +15,13 @@ export interface LogEntry {
 }
 
 export interface YieldPayload {
-  type: "text" | "choice" | "ask-user";
-  prompt: string;
+  type: "text" | "choice" | "ask-user" | "sh-error";
+  prompt?: string;
   data?: unknown;
   options?: string[];
+  cmd?: string;
+  result?: ShResult;
+  context?: { line: number | null; source: string | null };
 }
 
 export interface YieldMessage {
@@ -57,6 +60,11 @@ export interface SessionMeta {
   scriptName: string;
   scriptPath: string;
   createdAt: number;
+  pendingShError?: {
+    cmd: string;
+    result: ShResult;
+    timeout?: number;
+  };
 }
 
 // ── Compiled script interface ──
@@ -83,3 +91,6 @@ export type StepResult = InternalShYield | ExternalYield | DoneReturn;
 
 /** Signature of the compiled step(state, input) function */
 export type StepFunction = (state: SessionState, input?: string) => StepResult;
+
+/** Source map entry: [phase, originalLine, originalSource, type] */
+export type SourceMapEntry = [number, number, string | null, string];

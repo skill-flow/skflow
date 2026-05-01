@@ -82,8 +82,9 @@ Run the skflow <name> script and handle the yield protocol.
 1. Run `skflow run <name>` and parse the JSON output
 2. If yield with type "text": generate the requested answer based on the prompt and data, then `skflow resume <session> --answer="<answer>"`
 3. If yield with type "ask-user": present the question to the user with AskUserQuestion, then `skflow resume <session> --answer="<user's answer>"`
-4. If done: report the summary
-5. On error: report the error message
+4. If yield with type "sh-error": a shell command failed. Analyze the error (cmd, result.stderr, context.source) and either provide a corrected command via `skflow resume <session> --answer="<new command>"`, or stop and report the error to the user
+5. If done: report the summary
+6. On error: report the error message
 ```
 
 ## Step 4: Compile
@@ -248,10 +249,11 @@ allowed-tools: Bash(skflow *)
 Run the skflow commit script and handle the yield protocol.
 
 1. Run `skflow run commit` and parse the JSON output
-2. If yield: generate a commit title based on the diff data, then `skflow resume <session> --answer="<title>"`
-3. If yield (ask-user): present the question to the user with AskUserQuestion, then resume with their answer
-4. If done: report the summary
-5. On error: report the error message
+2. If yield with type "text": generate a commit title based on the diff data, then `skflow resume <session> --answer="<title>"`
+3. If yield with type "ask-user": present the question to the user with AskUserQuestion, then resume with their answer
+4. If yield with type "sh-error": analyze the failed command and stderr, provide a corrected command via `skflow resume <session> --answer="<fixed command>"`, or stop and report the error to the user
+5. If done: report the summary
+6. On error: report the error message
 ```
 
 ### Key Transformation Decisions in This Example

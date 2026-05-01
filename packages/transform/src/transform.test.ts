@@ -10,9 +10,18 @@ function compileAndRun(source: string) {
 
   // Evaluate the generated code — strip 'export' keyword for eval context
   const evalCode = result.code.replace(/^export /gm, "");
-  const fn = new Function("exports", evalCode + "\nexports.step = step;\nreturn exports;");
+  const fn = new Function(
+    "exports",
+    evalCode +
+      "\nexports.step = step;\nif (typeof __sourceMap !== 'undefined') exports.__sourceMap = __sourceMap;\nreturn exports;",
+  );
   const mod = fn({});
-  return { code: result.code, step: mod.step as (state: any, input?: string) => any, errors: [] };
+  return {
+    code: result.code,
+    step: mod.step as (state: any, input?: string) => any,
+    __sourceMap: mod.__sourceMap as any[] | undefined,
+    errors: [],
+  };
 }
 
 describe("transform — sequential (5.9)", () => {
@@ -1112,5 +1121,70 @@ export async function main() {
     expect(r.errors).toEqual([]);
     expect(r.code).toContain("_completion");
     expect(r.code).toContain('"normal"');
+  });
+});
+
+describe("transform — __sourceMap generation", () => {
+  it("emits __sourceMap with correct phase/line/source mappings", () => {
+    const source = `
+import { sh, ask, done } from "@skflow/runtime";
+export async function main() {
+  const x = await sh("echo hello");
+  const y = await ask({ prompt: "title?" });
+  const z = await sh("echo done");
+  return done({ summary: "ok" });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+    expect(r.__sourceMap).toBeDefined();
+    expect(r.__sourceMap!.length).toBeGreaterThan(0);
+
+    // Check that source map contains entries for sh and ask
+    const shEntries = r.__sourceMap!.filter(([, , , type]: any) => type === "sh");
+    const shResumeEntries = r.__sourceMap!.filter(([, , , type]: any) => type === "sh-resume");
+    const askEntries = r.__sourceMap!.filter(([, , , type]: any) => type === "ask");
+
+    expect(shEntries.length).toBe(2); // two sh() calls
+    expect(shResumeEntries.length).toBe(2);
+    expect(askEntries.length).toBe(1);
+
+    // Verify line numbers correspond to original source
+    // Line 4: const x = await sh("echo hello")
+    const firstSh = shEntries[0];
+    expect(firstSh[1]).toBe(4); // line number
+    expect(firstSh[2]).toContain('await sh("echo hello")');
+
+    // Line 5: const y = await ask(...)
+    const firstAsk = askEntries[0];
+    expect(firstAsk[1]).toBe(5);
+    expect(firstAsk[2]).toContain("await ask");
+  });
+
+  it("emits __sourceMap export in compiled code", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+export async function main() {
+  const x = await sh("echo test");
+  return done({ summary: "ok" });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+    expect(r.code).toContain("export const __sourceMap =");
+  });
+
+  it("bare sh() calls are also tracked in sourceMap", () => {
+    const source = `
+import { sh, done } from "@skflow/runtime";
+export async function main() {
+  await sh("echo bare");
+  return done({ summary: "ok" });
+}`;
+    const r = compileAndRun(source);
+    expect(r.errors).toEqual([]);
+    expect(r.__sourceMap).toBeDefined();
+
+    const shEntries = r.__sourceMap!.filter(([, , , type]: any) => type === "sh");
+    expect(shEntries.length).toBe(1);
+    expect(shEntries[0][2]).toContain('await sh("echo bare")');
   });
 });
